@@ -19,7 +19,23 @@ export default defineConfig(({ mode }) => {
       host: true,
       proxy: { '/api': { target: env.VITE_API_PROXY ?? 'http://localhost:4000', changeOrigin: true } },
     },
-    build: { outDir: 'dist', sourcemap: true, chunkSizeWarningLimit: 1200 },
+    build: {
+      outDir: 'dist',
+      sourcemap: true,
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          // heavy libraries in their own chunks, loaded only by the screens that use them
+          manualChunks: (id) => {
+            if (!id.includes('node_modules')) return undefined;
+            if (/[\\/](konva|react-konva)[\\/]/.test(id)) return 'konva';
+            if (/[\\/](recharts|d3-[a-z]+|victory-vendor)[\\/]/.test(id)) return 'charts';
+            if (/[\\/]@zxing[\\/]/.test(id)) return 'zxing';
+            return undefined;
+          },
+        },
+      },
+    },
     test: {
       environment: 'jsdom',
       globals: true,

@@ -48,8 +48,9 @@ def hue_name(lab: list[float] | np.ndarray) -> str:
     if C < 8:
         return "white" if L > 80 else "black" if L < 25 else "grey"
     h = math.degrees(math.atan2(b, a)) % 360
-    for lim, name in ((20, "pink"), (45, "red"), (70, "orange"), (100, "yellow"), (150, "green"),
-                      (200, "teal"), (250, "blue"), (300, "violet"), (340, "magenta"), (361, "pink")):
+    # CIELAB hue angle bins (cyan / teal sit around 190-225°, blue around 225-290°)
+    for lim, name in ((20, "pink"), (45, "red"), (70, "orange"), (100, "yellow"), (160, "green"),
+                      (225, "teal"), (290, "blue"), (330, "violet"), (350, "magenta"), (361, "pink")):
         if h < lim:
             return name
     return "colour"
@@ -99,7 +100,12 @@ def _prepare(loader: _Loader, ref: dict, card: reference_card.CardCorrection | N
     lab = to_lab(rgb)
     poly = segment.polygon_mask(lab.shape[:2], ref.get("polygon"), s)
     ppmm = segment.px_per_mm(poly)
-    q_raw = quality.check(rgb, lab, poly, full_res_area_px=float(poly.sum()) / (s * s), expect_white=expect_white)
+    fab = segment.fabric_mask(lab, poly)
+    # image-quality checks look at the area that is actually measured (edge band excluded: it can
+    # hold paper between frayed threads); the low-resolution check uses the whole fabric area
+    core = segment.erode_edges(fab, config.EDGE_ERODE_MM * ppmm)
+    core = core if core.sum() >= 0.05 * max(1, fab.sum()) else fab
+    q_raw = quality.check(rgb, lab, core, full_res_area_px=float(fab.sum()) / (s * s), expect_white=expect_white)
     valid, seg = segment.clean(lab, poly, ppmm, glare=q_raw["glare_mask"], detect_seams=detect_seams)
     lab_s = smooth(lab, config.SMOOTH_SIGMA_MM * ppmm)
     return PieceImage(path=ref["path"], rgb=rgb, lab=lab_s, scale=s, device=img.device, sha256=img.sha256,
@@ -232,7 +238,7 @@ def grade_test(request: dict, output_dir: str | Path) -> dict:
         common_spec_warn.append("REGISTRATION_FAILED")
 
     # --- colour change --------------------------------------------------------
-    change_heat_path = str(out_dir / "heatmap_change.png")
+    change_heat_path = str(out_dir / "heatmap_change.jpg")
     if reg.ok and change_mask.sum() >= 50:
         total = int(change_mask.sum())
         regions: list[tuple[str, str | None, np.ndarray]] = []
@@ -310,7 +316,7 @@ def grade_test(request: dict, output_dir: str | Path) -> dict:
         f["stain_statistic"] = stain_stat
         iso = r_p90 if stain_stat == "p90" else r_median
         boot = bootstrap_independent(b.lab, b.valid, a.lab, a.valid, _stain_rate)
-        hp = str(out_dir / f"heatmap_stain_{k}.png")
+        hp = str(out_dir / f"heatmap_stain_{k}.jpg")
         heatmap.render(a.rgb, emap, config.HEATMAP_MAX_DE_STAIN, hp)
         w = _active_warnings(b, a) + [x for x in global_warnings if x in ("DIFFERENT_DEVICE_BEFORE_AFTER", "noRefCard")]
         for x in _active_warnings(b, a):
@@ -361,6 +367,10 @@ def _finalise(item: dict, mdl, ctx: dict, warnings: list[str], required, registr
         unc["ci"] = [max(1.0, unc["ci"][0] - model_std), min(5.0, unc["ci"][1] + model_std)]
     placeholder = bool(feats.get("dE_F_is_placeholder", False))
     decision, reasons = _decide(final, unc["ci"], warnings, required, registration_failed, placeholder)
+    margin = float(getattr(mdl, "review_margin", 0.0) or 0.0)
+    if model_rating is not None and margin > 0 and boundary_distance(final) < margin:
+        reasons.append("MODEL_UNCERTAIN")
+        decision = "REVIEW"
     half = iso_grading.half_grade(final)
     feats.update({"review_reasons": reasons, "warnings": list(dict.fromkeys(warnings)),
                   "ci_width": unc["width"], "model_name": mdl.name, "model_std": round(model_std, 4)})
@@ -381,6 +391,11 @@ def _finalise(item: dict, mdl, ctx: dict, warnings: list[str], required, registr
         "heatmap_path": heat_path,
         "model_version": mdl.version,
     }
+
+
+def boundary_distance(rating: float) -> float:
+    """Distance of a continuous rating to the nearest half-grade rounding boundary (x.25 / x.75)."""
+    return 0.25 - abs(((rating - 1.25) % 0.5) - 0.25)
 
 
 def _model_version_string(m_change, m_stain) -> str:
@@ -410,7 +425,8 @@ def inspect_image(path: str, preview_path: str | None = None, expect_white: bool
     h, w = lab.shape[:2]
     m = np.zeros((h, w), dtype=bool)
     m[int(h * 0.1):int(h * 0.9), int(w * 0.1):int(w * 0.9)] = True
-    q = quality.check(small, lab, m, full_res_area_px=float(img.width * img.height),  # whole frame; per-region check runs at grading
+    # low-res uses the whole frame here; the per-region check runs at grading
+    q = quality.check(small, lab, m, full_res_area_px=float(img.width * img.height),
                       expect_white=expect_white)
     warnings = dict(q["warnings"])
     warnings["noRefCard"] = True  # refined at grading time when a card region is confirmed
@@ -421,12 +437,13 @@ def inspect_image(path: str, preview_path: str | None = None, expect_white: bool
             "preview_path": preview_path}
 
 
-def detect(path: str, expected_pieces: list[str]) -> dict:
+def detect(path: str, expected_pieces: list[str], background: str | None = None) -> dict:
     img = load(path)
     small, s = downscale(img.rgb, 800)
     lab = to_lab(small)
-    regions = segment.detect_regions(small, lab, expected_pieces, s)
-    return {"regions": regions, "width": img.width, "height": img.height}
+    mode = segment.background_mode(lab, background)
+    regions = segment.detect_regions(small, lab, expected_pieces, s, mode)
+    return {"regions": regions, "width": img.width, "height": img.height, "background": mode}
 
 
 def check_alignment(before: dict, after: dict) -> dict:

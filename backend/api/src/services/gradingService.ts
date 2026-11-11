@@ -11,6 +11,7 @@ import { asArray } from '../utils/json.js';
 import { audit } from './auditService.js';
 import { completeTest } from './completionService.js';
 import { getSettings } from './settingsService.js';
+import { mirror } from './storageService.js';
 import { findPieceRef, loadTest, missingPieces, transition } from './testService.js';
 import type { Viewer } from './presenter.js';
 
@@ -109,6 +110,7 @@ export async function runJob(testId: string, user: Viewer): Promise<void> {
         engineVersion: res.engine_version, modelVersion: res.model_version, grades: res.grades.length, status: next,
       }, tx);
     });
+    for (const h of new Set(res.grades.map((g) => g.heatmap_path))) await mirror(h);
     const settings = await getSettings();
     if (next === 'GRADED_AUTO' && settings.autoCompleteAuto) await completeTest(testId, user);
   } catch (err) {

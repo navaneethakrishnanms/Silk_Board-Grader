@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, Upload } from 'lucide-react';
 import { GRADES, gradeLabel, ROLES, type Role, type SettingsDTO } from '@silkgrade/shared';
 import { Badge, Button, Card, CardHeader, ErrorBox, Field, Input, PageHeader, Select, Spinner, Switch, Table, Tabs, Td, Textarea, Th } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, type CompareDTO } from '@/lib/api';
 import { fmtDateTime, toast } from '@/lib/utils';
 
 type Tab = 'general' | 'users' | 'models';
@@ -28,7 +28,7 @@ function GeneralSettings() {
   const save = useMutation({
     mutationFn: () => api.saveSettings({
       labName: s!.labName, washMethods: s!.washMethods.filter(Boolean), requiredPresets: s!.requiredPresets, captureGuideline: s!.captureGuideline,
-      stainStatistic: s!.stainStatistic, changeRule: s!.changeRule, autoCompleteAuto: s!.autoCompleteAuto, blindDisagreementLimit: s!.blindDisagreementLimit,
+      stainStatistic: s!.stainStatistic, changeRule: s!.changeRule, autoCompleteAuto: s!.autoCompleteAuto, blindDisagreementLimit: s!.blindDisagreementLimit, consensusRule: s!.consensusRule, backgroundMode: s!.backgroundMode,
     }),
     onSuccess: (d) => { setS(d); toast.ok('Settings saved'); void qc.invalidateQueries({ queryKey: ['settings'] }); },
   });
@@ -72,8 +72,20 @@ function GeneralSettings() {
           <Field label="Printed fabrics — overall change" htmlFor="cr">
             <Select id="cr" value={s.changeRule} onChange={(e) => setS({ ...s, changeRule: e.target.value as 'area_weighted' | 'worst' })}><option value="area_weighted">Area-weighted</option><option value="worst">Worst colour</option></Select>
           </Field>
-          <Field label="Blind disagreement limit" hint="Third expert if A and B differ by more" htmlFor="bl">
+          <Field label="Blind labelling consensus" hint="Third assessor = any A/B disagreement goes to Expert C (design default)" htmlFor="cr2">
+            <Select id="cr2" value={s.consensusRule} onChange={(e) => setS({ ...s, consensusRule: e.target.value as SettingsDTO['consensusRule'] })}>
+              <option value="third_assessor">Third assessor decides any disagreement</option>
+              <option value="lower">Lower grade if within limit, else third assessor</option>
+              <option value="mean_round_down">Mean rounded down if within limit, else third assessor</option>
+            </Select>
+          </Field>
+          <Field label="A/B limit (lower / mean rules)" hint="Ignored by the third-assessor rule" htmlFor="bl">
             <Select id="bl" value={s.blindDisagreementLimit} onChange={(e) => setS({ ...s, blindDisagreementLimit: Number(e.target.value) })}><option value={0}>0 (must match)</option><option value={0.5}>0.5</option><option value={1}>1.0</option></Select>
+          </Field>
+          <Field label="Scan / photo background" hint="White = fabric on white paper (detects white fabric by texture)" htmlFor="bgm">
+            <Select id="bgm" value={s.backgroundMode} onChange={(e) => setS({ ...s, backgroundMode: e.target.value as SettingsDTO['backgroundMode'] })}>
+              <option value="auto">Auto-detect</option><option value="white">White paper</option><option value="grey">Grey board</option><option value="black">Black board</option>
+            </Select>
           </Field>
           <Field label="Auto-complete" hint="Complete tests automatically when every grade is AUTO">
             <Switch checked={s.autoCompleteAuto} onChange={(v) => setS({ ...s, autoCompleteAuto: v })} label={s.autoCompleteAuto ? 'On' : 'Off'} />
@@ -142,9 +154,30 @@ function Models() {
   const health = useQuery({ queryKey: ['engine-health'], queryFn: api.engineHealth, refetchInterval: 15_000 });
   const file = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [compare, setCompare] = useState<CompareDTO | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ['models'] });
+  const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
   return (
     <div className="space-y-4">
+      {compare && (
+        <Card>
+          <CardHeader
+            title={`Compare ${compare.model} ${compare.candidate.version} with ${compare.active ? `active ${compare.active.version}` : 'formula-only'}`}
+            subtitle={`${compare.records} past expert-graded records — agreement of each model's half grade with the expert grade`}
+            actions={<Button size="sm" variant="ghost" onClick={() => setCompare(null)}>Close</Button>}
+          />
+          {compare.records === 0 ? <p className="muted p-4 text-sm">No expert-graded records yet to compare on.</p> : (
+            <Table>
+              <thead><tr><Th>Model</Th><Th>n</Th><Th>Exact</Th><Th>Within ±0.5</Th><Th>Weighted kappa</Th><Th>MAE</Th></tr></thead>
+              <tbody>
+                {([['Candidate', compare.candidateAgreement], [compare.active ? 'Active' : 'Formula-only (active)', compare.activeAgreement], ['ISO formula', compare.formulaAgreement]] as const).map(([label, a]) => (
+                  <tr key={label}><Td>{label}</Td><Td className="num">{a?.n}</Td><Td className="num">{pct(a?.exact)}</Td><Td className="num">{pct(a?.withinHalf)}</Td><Td className="num">{a?.qwk?.toFixed(3) ?? '—'}</Td><Td className="num">{a?.mae?.toFixed(3) ?? '—'}</Td></tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      )}
       <Card>
         <CardHeader title="Engine health" />
         <div className="p-4 text-sm">
@@ -179,11 +212,14 @@ function Models() {
                 const mv = (m.metrics?.model_val ?? m.metrics?.model_test) as Record<string, number> | undefined;
                 return (
                   <tr key={m.id}>
-                    <Td className="num">{m.name}</Td><Td className="num">{m.version}</Td>
+                    <Td className="num">{m.name}</Td><Td className="num">{m.version}{m.metrics?.synthetic ? <Badge tone="violet" className="ml-2">synthetic</Badge> : null}</Td>
                     <Td className="num text-xs">{mv ? `within ±0.5 ${Math.round((mv.within_half ?? 0) * 100)}% · MAE ${mv.mae}` : '—'}</Td>
                     <Td className="muted text-xs">{fmtDateTime(m.createdAt)}</Td>
                     <Td>{m.active ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</Td>
-                    <Td><Button size="sm" variant="outline" onClick={async () => { try { await api.activateModel(m.id, !m.active); void refresh(); } catch (e) { toast.error(e); } }}>{m.active ? 'Deactivate' : 'Activate'}</Button></Td>
+                    <Td className="whitespace-nowrap">
+                      <Button size="sm" variant="ghost" onClick={async () => { try { setCompare(await api.compareModel(m.id)); } catch (e) { toast.error(e); } }}>Compare</Button>
+                      <Button size="sm" variant="outline" onClick={async () => { try { await api.activateModel(m.id, !m.active); void refresh(); } catch (e) { toast.error(e); } }}>{m.active ? 'Deactivate' : 'Activate'}</Button>
+                    </Td>
                   </tr>
                 );
               })}

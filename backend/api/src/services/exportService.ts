@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import archiver from 'archiver';
 import type { Writable } from 'node:stream';
-import { blindState, GRADE_KINDS, type GradeKind, type TestListQuery } from '@silkgrade/shared';
+import { blindState, GRADE_KINDS, quadraticWeightedKappa, type GradeKind, type TestListQuery } from '@silkgrade/shared';
 import { prisma } from '../lib/prisma.js';
 import { toCsv } from '../utils/csv.js';
 import { asArray, asObject } from '../utils/json.js';
 import { effectiveGrade, isLabelled, sortGrades, testInclude, type FullTest, type Viewer } from './presenter.js';
-import { getSettings } from './settingsService.js';
+import { getConsensusPolicy } from './settingsService.js';
 import { absPath, exists } from './storageService.js';
 import { findPieceRef, listTests } from './testService.js';
 
@@ -51,13 +51,13 @@ const safe = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');
 
 /** One record per completed, labelled test. */
 export async function datasetTests(): Promise<FullTest[]> {
-  const { blindDisagreementLimit: limit } = await getSettings();
+  const limit = await getConsensusPolicy();
   const tests = await prisma.test.findMany({ where: { status: 'COMPLETED' }, include: testInclude, orderBy: { createdAt: 'asc' } });
   return tests.filter((t) => t.grades.length && (t.datasetMode ? isLabelled(t, limit) : t.grades.some((g) => g.expertGrades.length)));
 }
 
 export async function writeDatasetZip(stream: Writable): Promise<number> {
-  const { blindDisagreementLimit: limit } = await getSettings();
+  const limit = await getConsensusPolicy();
   const tests = await datasetTests();
   const zip = archiver('zip', { zlib: { level: 6 } });
   zip.pipe(stream);
@@ -119,11 +119,13 @@ export async function writeDatasetZip(stream: Writable): Promise<number> {
   return tests.length;
 }
 
+export const AGREEMENT_MIN_RECORDS = 20;
+
 export async function datasetStats() {
-  const { blindDisagreementLimit: limit } = await getSettings();
+  const limit = await getConsensusPolicy();
   const all = await prisma.test.findMany({ where: { status: { not: 'VOID' }, grades: { some: {} } }, include: testInclude });
   const counts = new Map<string, number>();
-  const agreement = new Map<string, { n: number; exact: number; within: number }>();
+  const agreement = new Map<string, { n: number; exact: number; within: number; a: number[]; b: number[] }>();
   let total = 0; let labelled = 0; let awaitingSecond = 0; let awaitingThird = 0;
   for (const t of all) {
     if (t.datasetMode) {
@@ -141,7 +143,9 @@ export async function datasetStats() {
       }
       if (g.expertGrades.length >= 2) {
         const [a, b] = g.expertGrades;
-        const s = agreement.get(g.kind) ?? { n: 0, exact: 0, within: 0 };
+        const s = agreement.get(g.kind) ?? { n: 0, exact: 0, within: 0, a: [], b: [] };
+        s.a.push(a.halfGrade);
+        s.b.push(b.halfGrade);
         s.n++; if (a.halfGrade === b.halfGrade) s.exact++; if (Math.abs(a.halfGrade - b.halfGrade) <= 0.5) s.within++;
         agreement.set(g.kind, s);
       }
@@ -151,7 +155,11 @@ export async function datasetStats() {
     counts: GRADE_KINDS.flatMap((kind) => [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((grade) => ({ kind, grade, n: counts.get(`${kind}|${grade}`) ?? 0 }))),
     minPerGrade: 40,
     blind: { total, labelled, awaitingSecond, awaitingThird },
-    agreement: [...agreement.entries()].map(([kind, s]) => ({ kind: kind as GradeKind, n: s.n, exact: s.exact / s.n, withinHalf: s.within / s.n })),
+    agreement: [...agreement.entries()].map(([kind, s]) => ({
+      kind: kind as GradeKind, n: s.n, exact: s.exact / s.n, withinHalf: s.within / s.n, qwk: quadraticWeightedKappa(s.a, s.b),
+    })),
+    agreementMinRecords: AGREEMENT_MIN_RECORDS,
+    consensusRule: limit.rule,
   };
 }
 

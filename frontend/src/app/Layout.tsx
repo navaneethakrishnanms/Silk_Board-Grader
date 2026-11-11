@@ -1,5 +1,7 @@
-import { ClipboardCheck, Database, FlaskConical, History, LayoutDashboard, LogOut, Moon, Plus, Settings, Sun, Timer } from 'lucide-react';
+import { Activity, ClipboardCheck, Database, FlaskConical, History, LayoutDashboard, LogOut, Moon, Plus, Settings, Sun, Timer } from 'lucide-react';
+import { Suspense } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Spinner } from '@/components/ui';
 import { hasRole, type Role } from '@silkgrade/shared';
 import { useAuth } from '@/lib/auth';
 import { cn, useTheme } from '@/lib/utils';
@@ -11,6 +13,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; min?: Role
   { to: '/review', label: 'Review Queue', icon: ClipboardCheck, min: 'EXPERT', mobile: true },
   { to: '/history', label: 'History', icon: History, mobile: true },
   { to: '/dataset', label: 'Dataset', icon: Database, min: 'EXPERT' },
+  { to: '/pilot', label: 'Pilot tools', icon: Activity, min: 'EXPERT' },
   { to: '/settings', label: 'Settings', icon: Settings, min: 'ADMIN' },
 ];
 
@@ -67,7 +70,9 @@ export function Layout() {
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-24 pt-5 md:px-6 md:pb-10">
-          <Outlet />
+          <Suspense fallback={<Spinner />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

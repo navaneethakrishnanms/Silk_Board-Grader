@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 
@@ -24,12 +24,18 @@ def _window_indices(ys: np.ndarray, xs: np.ndarray, frac: float, rng: np.random.
     hh, ww = y1 - y0, x1 - x0
     s = np.sqrt(frac)
     wh, wy = max(2, int(hh * s)), max(2, int(ww * s))
+    sel = np.empty(0, dtype=np.int64)
     for _ in range(8):
         oy = rng.integers(y0, max(y0 + 1, y1 - wh + 1))
         ox = rng.integers(x0, max(x0 + 1, x1 - wy + 1))
         sel = np.nonzero((ys >= oy) & (ys < oy + wh) & (xs >= ox) & (xs < ox + wy))[0]
         if sel.size >= 30:
             break
+    if sel.size < 30:
+        # thin / scattered region (e.g. a fine print motif): no compact window holds enough
+        # pixels, so fall back to a random share of the region's pixels
+        k = max(min(ys.size, 30), int(ys.size * frac))
+        sel = rng.choice(ys.size, k, replace=False)
     if sel.size > config.BOOTSTRAP_MAX_PIXELS:
         sel = rng.choice(sel, config.BOOTSTRAP_MAX_PIXELS, replace=False)
     return sel
@@ -77,6 +83,7 @@ def interval(final_rating: float, boot: np.ndarray, n_warnings: int = 0,
              ref_residual_de00: float | None = None) -> dict:
     """95 % interval centred on the final rating, widened by warnings and the
     reference-card residual; confidence from the interval width."""
+    boot = boot[np.isfinite(boot)] if boot.size else boot
     if boot.size:
         lo, med, hi = np.percentile(boot, [2.5, 50, 97.5])
         offset = final_rating - med

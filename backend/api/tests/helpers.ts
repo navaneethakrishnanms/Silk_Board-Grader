@@ -9,7 +9,7 @@ export function makePrismaMock() {
   });
   const m = {
     user: model(), sample: model(), test: model(), image: model(), region: model(), grade: model(),
-    expertGrade: model(), modelVersion: model(), setting: model(), auditLog: model(),
+    expertGrade: model(), modelVersion: model(), setting: model(), auditLog: model(), refreshToken: model(),
     $transaction: vi.fn(),
     $connect: vi.fn(),
   };

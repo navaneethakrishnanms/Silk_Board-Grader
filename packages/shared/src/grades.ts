@@ -59,6 +59,8 @@ export const REVIEW_REASON_LABEL: Record<string, string> = {
   REGISTRATION: 'Alignment failed',
   PROVISIONAL: 'Provisional formula (ΔE_F placeholder)',
   DATASET: 'Dataset mode — blind labelling',
+  NEEDS_THIRD: 'Assessors disagree — needs third assessor',
+  MODEL_UNCERTAIN: 'Model prediction close to a grade boundary',
 };
 
 /** Capture guideline C1–C10 (design doc Section 11). Default text; admins can edit it in Settings. */

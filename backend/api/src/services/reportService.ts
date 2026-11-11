@@ -5,9 +5,22 @@ import { GRADE_CODE, GRADE_KIND_LABEL, gradeLabel, isChangeKind, type GradeKind 
 import { asObject } from '../utils/json.js';
 import { effectiveGrade, sortGrades, type FullTest } from './presenter.js';
 import { getSettings } from './settingsService.js';
-import { absPath, ensureDir, exists } from './storageService.js';
+import { absPath, ensureDir, exists, mirror } from './storageService.js';
 
 const APP_VERSION = '1.0.0';
+
+/** The built-in PDF fonts (Helvetica, WinAnsi) cannot show every Unicode character;
+ *  map the few we use to safe equivalents so nothing renders as a replacement glyph. */
+export function pdfSafe(s: string): string {
+  return s
+    .replace(/[\u2014\u2013]/g, '-')
+    .replace(/\u00b7/g, '|')
+    .replace(/\u0394/g, 'd')
+    .replace(/\s?\u00b0/g, ' deg ')
+    .replace(/\u2026/g, '...')
+    .replace(/[^\t\n\r\x20-\x7e\u00a0-\u00ff]/g, '?');
+}
+
 const GREY = '#555555';
 
 export async function generateReport(test: FullTest, opts: { completedAt: Date | null; final: boolean }): Promise<string> {
@@ -16,6 +29,9 @@ export async function generateReport(test: FullTest, opts: { completedAt: Date |
   await ensureDir(dir);
   const rel = `${dir}/${test.reportNo}${opts.final ? '' : '-preview'}.pdf`;
   const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, info: { Title: `SilkGrade report ${test.reportNo}` } });
+  const rawText = doc.text.bind(doc) as (...a: unknown[]) => PDFKit.PDFDocument;
+  (doc as unknown as { text: (...a: unknown[]) => PDFKit.PDFDocument }).text = (t: unknown, ...rest: unknown[]) =>
+    rawText(typeof t === 'string' ? pdfSafe(t) : t, ...rest);
   const out = fs.createWriteStream(absPath(rel));
   doc.pipe(out);
   const W = doc.page.width - 80;
@@ -86,7 +102,8 @@ export async function generateReport(test: FullTest, opts: { completedAt: Date |
   }
 
   // 5. heat-maps
-  const heat = [...new Map(test.grades.filter((g) => g.heatmapPath && exists(g.heatmapPath)).map((g) => [g.heatmapPath!, g])).values()];
+  const heatSources = test.grades.filter((g) => g.heatmapPath && exists(g.heatmapPath) && !g.kind.endsWith('_WORST'));
+  const heat = [...new Map(heatSources.reverse().map((g) => [g.heatmapPath!, g])).values()].reverse();
   if (heat.length && !hidden) {
     section(doc, 'Heat-maps (per-pixel dE)');
     let hx = 40;
@@ -95,7 +112,7 @@ export async function generateReport(test: FullTest, opts: { completedAt: Date |
     for (const g of heat) {
       if (hx + 165 > 40 + W) { hx = 40; hy += 160; }
       try { doc.image(absPath(g.heatmapPath!), hx, hy, { fit: [160, 130] }); } catch { /* ignore */ }
-      doc.fontSize(7).fillColor(GREY).text(isChangeKind(g.kind as GradeKind) ? 'Colour change' : `Staining ${g.label ?? ''}`, hx, hy + 132, { width: 160 });
+      doc.fontSize(7).fillColor(GREY).text(isChangeKind(g.kind as GradeKind) ? 'Colour change' : `Staining ${g.kind === 'STAIN_ADJ1' ? 'adjacent 1' : 'adjacent 2'} (${g.label ?? ''})`, hx, hy + 132, { width: 160 });
       hx += 170;
     }
     doc.x = 40;
@@ -135,13 +152,17 @@ export async function generateReport(test: FullTest, opts: { completedAt: Date |
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    const bottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0; // writing inside the margin must not create a new page
     doc.fontSize(7).fillColor(GREY).text(
       `Instrument-assisted grading. Provisional until the laboratory completes method validation.   ·   ${test.reportNo}   ·   page ${i + 1}/${range.count}`,
       40, doc.page.height - 30, { width: W, align: 'center', lineBreak: false },
     );
+    doc.page.margins.bottom = bottom;
   }
   doc.end();
   await new Promise<void>((resolve, reject) => { out.on('finish', () => resolve()); out.on('error', reject); });
+  if (opts.final) await mirror(rel);
   return rel;
 }
 

@@ -48,6 +48,8 @@ export function RegionEditor({ src, width, height, polygons, onChange, pieces, r
 
   useEffect(() => {
     if (!wrap.current) return;
+    setBoxW(wrap.current.clientWidth || 600);
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([e]) => setBoxW(e.contentRect.width));
     ro.observe(wrap.current);
     return () => ro.disconnect();

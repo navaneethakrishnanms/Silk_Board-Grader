@@ -7,15 +7,15 @@ import { engineClient } from '../clients/engineClient.js';
 import { prisma } from '../lib/prisma.js';
 import { parse } from '../middleware/validate.js';
 import { audit } from '../services/auditService.js';
-import { hashPassword, toUserDTO } from '../services/authService.js';
+import { hashPassword, revokeAllForUser, toUserDTO } from '../services/authService.js';
 import { dashboard } from '../services/dashboardService.js';
 import { datasetStats, testsCsv, writeDatasetZip } from '../services/exportService.js';
 import { verifyToken } from '../services/fileService.js';
 import * as models from '../services/modelService.js';
 import { presentTest } from '../services/presenter.js';
 import { addExpertGrade, reviewQueue } from '../services/reviewService.js';
-import { getPublicSettings, getSettings, updateSettings } from '../services/settingsService.js';
-import { absPath } from '../services/storageService.js';
+import { getConsensusPolicy, getPublicSettings, getSettings, updateSettings } from '../services/settingsService.js';
+import { absPath, ensureLocal } from '../services/storageService.js';
 import { badRequest, conflict, notFound } from '../utils/httpError.js';
 
 export const getDashboard = async (req: Request, res: Response) => { res.json(await dashboard(req.user!)); };
@@ -26,7 +26,7 @@ export async function getReview(req: Request, res: Response) {
 
 export async function postExpertGrade(req: Request, res: Response) {
   const t = await addExpertGrade(String(req.params.gradeId), parse(expertGradeSchema, req.body), req.user!);
-  const { blindDisagreementLimit } = await getSettings();
+  const blindDisagreementLimit = await getConsensusPolicy();
   res.status(201).json(presentTest(t, req.user!, blindDisagreementLimit));
 }
 
@@ -78,7 +78,9 @@ export async function updateUser(req: Request, res: Response) {
     where: { id: uid },
     data: { name: u.name, role: u.role as Role | undefined, active: u.active, ...(u.password ? { passwordHash: await hashPassword(u.password) } : {}) },
   });
-  await audit(req.user!.id, 'UPDATE_USER', 'User', uid, { fields: Object.keys(u).filter((k) => k !== 'password'), passwordReset: !!u.password });
+  // a new password or a deactivation ends every existing session of that user
+  const revoked = u.password || u.active === false ? await revokeAllForUser(uid) : 0;
+  await audit(req.user!.id, 'UPDATE_USER', 'User', uid, { fields: Object.keys(u).filter((k) => k !== 'password'), passwordReset: !!u.password, sessionsRevoked: revoked });
   res.json(toUserDTO(user));
 }
 
@@ -88,6 +90,7 @@ export async function postModel(req: Request, res: Response) {
   res.status(201).json(await models.uploadModel(req.file, { name: req.body.name, version: req.body.version }, req.user!));
 }
 export const activateModel = async (req: Request, res: Response) => { res.json(await models.setActive(String(req.params.id), true, req.user!)); };
+export const compareModel = async (req: Request, res: Response) => { res.json(await models.compareModel(String(req.params.id))); };
 export const deactivateModel = async (req: Request, res: Response) => { res.json(await models.setActive(String(req.params.id), false, req.user!)); };
 
 export async function engineHealth(_req: Request, res: Response) {
@@ -104,11 +107,11 @@ const MIME: Record<string, string> = {
 };
 
 /** Signed file access (no Authorization header needed; token expires). */
-export function getFile(req: Request, res: Response) {
+export async function getFile(req: Request, res: Response) {
   const rel = verifyToken(String(req.params.token));
   if (!rel) throw notFound('File');
   const abs = absPath(rel);
-  if (!fs.existsSync(abs)) throw notFound('File');
+  if (!(await ensureLocal(rel)) || !fs.existsSync(abs)) throw notFound('File');
   res.setHeader('Content-Type', MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream');
   res.setHeader('Cache-Control', 'private, max-age=600');
   res.setHeader('X-Content-Type-Options', 'nosniff');

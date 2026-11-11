@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import zlib
 import sys
+import zlib
 from pathlib import Path
 
 import cv2

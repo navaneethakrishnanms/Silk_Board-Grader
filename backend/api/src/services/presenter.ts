@@ -2,7 +2,7 @@
  *  grades (expert consensus over engine grade) and signed file URLs. */
 import type { Prisma } from '@prisma/client';
 import {
-  blindState, consensus, hasRole, isChangeKind, type GradeDTO, type GradeKind, type ImageDTO, type Role,
+  blindState, consensus, DEFAULT_CONSENSUS, hasRole, type ConsensusPolicy, isChangeKind, type GradeDTO, type GradeKind, type ImageDTO, type Role,
   type TestDTO, type TestSummaryDTO,
 } from '@silkgrade/shared';
 import { asArray, asObject, iso } from '../utils/json.js';
@@ -28,20 +28,20 @@ export interface Viewer {
 
 const KIND_ORDER: GradeKind[] = ['CHANGE_OVERALL', 'CHANGE_GROUND', 'CHANGE_MOTIF', 'CHANGE_WORST', 'STAIN_ADJ1', 'STAIN_ADJ2', 'STAIN_WORST'];
 
-export function isLabelled(test: Pick<FullTest, 'grades'>, limit = 0.5): boolean {
+export function isLabelled(test: Pick<FullTest, 'grades'>, limit: ConsensusPolicy = DEFAULT_CONSENSUS): boolean {
   return test.grades.length > 0 && test.grades.every((g) => blindState(marks(g), limit) === 'LABELLED');
 }
 
 const marks = (g: FullGrade) =>
   g.expertGrades.map((e) => ({ userId: e.userId, halfGrade: e.halfGrade, blind: e.blind, createdAt: e.createdAt }));
 
-export function effectiveGrade(g: FullGrade, datasetMode: boolean, limit = 0.5): number | null {
+export function effectiveGrade(g: FullGrade, datasetMode: boolean, limit: ConsensusPolicy = DEFAULT_CONSENSUS): number | null {
   const c = consensus(marks(g), datasetMode, limit);
   if (c !== null) return c;
   return datasetMode ? null : g.halfGrade;
 }
 
-export function isReviewed(g: FullGrade, datasetMode: boolean, limit = 0.5): boolean {
+export function isReviewed(g: FullGrade, datasetMode: boolean, limit: ConsensusPolicy = DEFAULT_CONSENSUS): boolean {
   if (datasetMode) return blindState(marks(g), limit) === 'LABELLED';
   return g.decision === 'AUTO' || g.expertGrades.length > 0;
 }
@@ -50,7 +50,7 @@ function requiredFor(test: FullTest, kind: GradeKind): number | null {
   return isChangeKind(kind) ? test.reqGradeChange : test.reqGradeStain;
 }
 
-export function presentGrade(test: FullTest, g: FullGrade, viewer: Viewer, hidden: boolean, limit = 0.5): GradeDTO {
+export function presentGrade(test: FullTest, g: FullGrade, viewer: Viewer, hidden: boolean, limit: ConsensusPolicy = DEFAULT_CONSENSUS): GradeDTO {
   const eff = effectiveGrade(g, test.datasetMode, limit);
   const req = requiredFor(test, g.kind as GradeKind);
   const labelled = !hidden;
@@ -86,6 +86,7 @@ export function presentGrade(test: FullTest, g: FullGrade, viewer: Viewer, hidde
     effectivePass: hidden || eff === null ? null : req === null || req === undefined ? g.pass : eff >= req,
     reviewed: isReviewed(g, test.datasetMode, limit),
     hidden,
+    blindState: test.datasetMode ? blindState(marks(g), limit) : undefined,
   };
 }
 
@@ -118,7 +119,7 @@ function presentImage(img: FullTest['images'][number]): ImageDTO {
   };
 }
 
-export function summarize(test: FullTest, viewer: Viewer, limit = 0.5): TestSummaryDTO {
+export function summarize(test: FullTest, viewer: Viewer, limit: ConsensusPolicy = DEFAULT_CONSENSUS): TestSummaryDTO {
   const hidden = test.datasetMode && !isLabelled(test, limit);
   const grades = sortGrades(test.grades).map((g) => presentGrade(test, g, viewer, hidden, limit));
   const passes = grades.map((g) => g.effectivePass).filter((p): p is boolean => p !== null);
@@ -127,6 +128,7 @@ export function summarize(test: FullTest, viewer: Viewer, limit = 0.5): TestSumm
   const reasons = new Set<string>();
   for (const g of reviewGrades) for (const r of asArray<string>(asObject(g.features).review_reasons)) reasons.add(r);
   if (hidden) reasons.add('DATASET');
+  if (test.datasetMode && test.grades.some((g) => blindState(marks(g), limit) === 'NEEDS_C')) reasons.add('NEEDS_THIRD');
   return {
     id: test.id,
     reportNo: test.reportNo,
@@ -149,14 +151,14 @@ export function summarize(test: FullTest, viewer: Viewer, limit = 0.5): TestSumm
   };
 }
 
-export function canComplete(test: FullTest, viewer: Viewer, limit = 0.5): boolean {
+export function canComplete(test: FullTest, viewer: Viewer, limit: ConsensusPolicy = DEFAULT_CONSENSUS): boolean {
   if (test.status === 'GRADED_AUTO') return !test.datasetMode || isLabelled(test, limit);
   if (test.status !== 'NEEDS_REVIEW' || !hasRole(viewer.role, 'EXPERT')) return false;
   if (test.datasetMode) return isLabelled(test, limit);
   return test.grades.every((g) => isReviewed(g, false, limit));
 }
 
-export function presentTest(test: FullTest, viewer: Viewer, limit = 0.5): TestDTO {
+export function presentTest(test: FullTest, viewer: Viewer, limit: ConsensusPolicy = DEFAULT_CONSENSUS): TestDTO {
   const hidden = test.datasetMode && !isLabelled(test, limit);
   const er = asObject<Record<string, unknown>>(test.engineResult);
   return {

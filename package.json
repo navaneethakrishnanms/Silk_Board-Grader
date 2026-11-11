@@ -2,7 +2,7 @@
   "name": "silkgrade",
   "private": true,
   "version": "1.0.0",
-  "description": "SilkGrade — AI-assisted colour fastness grading (web app V1, mobile-ready)",
+  "description": "SilkGrade \u00e2\u20ac\u201d AI-assisted colour fastness grading (web app V1, mobile-ready)",
   "workspaces": [
     "packages/shared",
     "backend/api",
@@ -19,7 +19,13 @@
     "test": "npm run test -w @silkgrade/shared && npm run test -w @silkgrade/api && npm run test -w @silkgrade/web",
     "test:engine": "cd backend/engine && python -m pytest",
     "typecheck": "npm run typecheck -w @silkgrade/api && npm run typecheck -w @silkgrade/web",
-    "e2e": "npm run e2e -w @silkgrade/web"
+    "e2e": "npm run e2e -w @silkgrade/web",
+    "lint": "eslint . && npm run lint:engine",
+    "lint:js": "eslint .",
+    "lint:engine": "cd backend/engine && python -m ruff check .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "demo": "node scripts/demo.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -30,5 +36,15 @@
     "@prisma/engines@6.19.3": true,
     "esbuild@0.28.2": true,
     "esbuild@0.25.12": true
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^9.2.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.72.2"
   }
 }

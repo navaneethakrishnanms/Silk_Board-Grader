@@ -44,6 +44,15 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ user });
   },
   logout: () => {
+    const rt = get().refreshToken;
+    if (rt) {
+      // best effort: revoke the refresh token on the server
+      fetch(`${(import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')}/api/v1/auth/logout`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt }),
+      }).catch(() => undefined);
+    }
     save({ accessToken: null, refreshToken: null, user: null });
     set({ accessToken: null, refreshToken: null, user: null });
   },

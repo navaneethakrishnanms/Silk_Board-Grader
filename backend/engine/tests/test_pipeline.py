@@ -113,7 +113,8 @@ def test_trained_model_version_appears_on_grades(manifest, synthetic_root, tmp_p
     import json
     spec = {"name": "m1_change", "version": "0.0.1-synthetic", "features": ["iso_rating"],
             "coef": [1.0], "intercept": 0.0, "residual_std": 0.05}
-    p = tmp_path / "m1.json"; p.write_text(json.dumps(spec))
+    p = tmp_path / "m1.json"
+    p.write_text(json.dumps(spec))
     req = absolute_request(manifest["plain_shift_3_4"], synthetic_root)
     req["options"]["models"] = {"m1_change": {"path": str(p), "version": "0.0.1-synthetic"}}
     r = grade_test(req, tmp_path / "out")

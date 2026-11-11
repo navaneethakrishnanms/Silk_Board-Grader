@@ -8,8 +8,10 @@
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-const CASE = path.resolve(__dirname, '../../storage/synthetic/plain_shift_3_4');
+const CASE = path.resolve(process.cwd(), '../storage/synthetic/plain_shift_3_4');
 const login = async (page: import('@playwright/test').Page, email: string, password: string) => {
+  await page.goto('/login');
+  await page.evaluate(() => localStorage.clear()); // sign out any previous user
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
@@ -47,9 +49,24 @@ test('tester grades a test, expert reviews and completes it', async ({ page }) =
 
   await login(page, 'expert@silkgrade.local', 'Expert@12345');
   await page.goto(url);
-  for (const btn of await page.getByRole('button', { name: /^Accept/ }).all()) await btn.click();
+  const accept = page.getByRole('button', { name: /^Accept/ });
+  await expect(accept.first()).toBeVisible();
+  // override the first REVIEW grade (reason required), accept the rest
+  await page.getByRole('button', { name: 'Override' }).first().click();
+  await page.getByRole('combobox', { name: 'Expert grade' }).selectOption('3.5');
+  await page.getByPlaceholder('Reason (required for an override)').fill('E2E override — visible fading at the edge');
+  await page.getByRole('button', { name: 'Save override' }).click();
+  await expect(page.getByText('E2E override', { exact: false })).toBeVisible();
+  while ((await accept.count()) > 0) {
+    const n = await accept.count();
+    await accept.first().click();
+    await expect(accept).toHaveCount(n - 1);
+  }
   await page.getByRole('button', { name: 'Complete & generate report' }).click();
   await expect(page.getByText('Completed', { exact: true })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'PDF', exact: true }).click();
+  expect((await download).suggestedFilename()).toMatch(/^SG-\d{4}-\d{6}\.pdf$/);
   await page.getByRole('button', { name: 'View report' }).click();
   await expect(page.locator('iframe[title="Report PDF"]')).toBeVisible();
 });

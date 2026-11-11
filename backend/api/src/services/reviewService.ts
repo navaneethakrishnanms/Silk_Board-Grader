@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { badRequest, conflict, notFound } from '../utils/httpError.js';
 import { audit } from './auditService.js';
 import { summarize, testInclude, type Viewer } from './presenter.js';
-import { getSettings } from './settingsService.js';
+import { getConsensusPolicy } from './settingsService.js';
 import { loadTest } from './testService.js';
 
 export async function addExpertGrade(gradeId: string, input: ExpertGradeInput, user: Viewer) {
@@ -13,7 +13,7 @@ export async function addExpertGrade(gradeId: string, input: ExpertGradeInput, u
   if (!grade) throw notFound('Grade');
   const test = grade.test;
   if (!['NEEDS_REVIEW', 'GRADED_AUTO'].includes(test.status)) throw conflict(`Cannot review a ${test.status} test`);
-  const { blindDisagreementLimit: limit } = await getSettings();
+  const limit = await getConsensusPolicy();
 
   if (test.datasetMode) {
     const marks = grade.expertGrades.map((e) => ({ ...e, blind: true }));
@@ -38,7 +38,7 @@ export async function addExpertGrade(gradeId: string, input: ExpertGradeInput, u
 }
 
 export async function reviewQueue(viewer: Viewer, filter: { reason?: string; kind?: string } = {}) {
-  const { blindDisagreementLimit: limit } = await getSettings();
+  const limit = await getConsensusPolicy();
   const rows = await prisma.test.findMany({ where: { status: 'NEEDS_REVIEW' }, include: testInclude, orderBy: { createdAt: 'asc' } });
   let items = rows.map((t) => summarize(t, viewer, limit));
   if (filter.reason) items = items.filter((i) => i.reviewReasons?.includes(filter.reason!));

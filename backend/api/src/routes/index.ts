@@ -4,9 +4,11 @@ import rateLimit from 'express-rate-limit';
 import * as admin from '../controllers/adminController.js';
 import * as auth from '../controllers/authController.js';
 import * as tests from '../controllers/testController.js';
+import * as pilot from '../services/pilotService.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { imageUpload, modelUpload } from '../middleware/upload.js';
+import { dataMode } from '../lib/prisma.js';
 
 export function buildRouter(opts: { authRateLimit?: number } = {}) {
   const r = Router();
@@ -15,8 +17,11 @@ export function buildRouter(opts: { authRateLimit?: number } = {}) {
   // public
   r.post('/auth/login', authLimiter, auth.postLogin);
   r.post('/auth/refresh', authLimiter, auth.postRefresh);
+  r.post('/auth/logout', auth.postLogout);
   r.get('/files/:token', admin.getFile); // signed URL
-  r.get('/health', (_req, res) => { res.json({ ok: true, service: 'silkgrade-api' }); });
+  r.get('/health', (_req, res) => {
+    res.json({ ok: true, service: 'silkgrade-api', dataMode });
+  });
 
   r.use(requireAuth);
   const tester = requireRole('TESTER');
@@ -55,6 +60,13 @@ export function buildRouter(opts: { authRateLimit?: number } = {}) {
   r.get('/export/dataset.zip', adminOnly, admin.exportDataset);
   r.get('/dataset/stats', expert, admin.getDatasetStats);
 
+  // pilot-readiness tools (WP7)
+  r.get('/pilot/samples', expert, async (_req, res) => { res.json(await pilot.pilotSamples()); });
+  r.get('/pilot/repeatability', expert, async (req, res) => { res.json(await pilot.repeatability(String(req.query.sampleId ?? ''))); });
+  r.get('/pilot/devices', expert, async (req, res) => { res.json(await pilot.deviceComparison(String(req.query.sampleId ?? ''))); });
+  r.get('/pilot/coverage', expert, async (_req, res) => { res.json(await pilot.coverage()); });
+  r.get('/pilot/shadow', expert, async (_req, res) => { res.json(await pilot.shadowReport()); });
+
   r.get('/settings', adminOnly, admin.getAllSettings);
   r.put('/settings', adminOnly, admin.putSettings);
   r.get('/users', adminOnly, admin.listUsers);
@@ -64,6 +76,7 @@ export function buildRouter(opts: { authRateLimit?: number } = {}) {
   r.post('/models', adminOnly, modelUpload.single('file'), admin.postModel);
   r.post('/models/:id/activate', adminOnly, admin.activateModel);
   r.post('/models/:id/deactivate', adminOnly, admin.deactivateModel);
+  r.post('/models/:id/compare', adminOnly, admin.compareModel);
   r.get('/engine/health', adminOnly, admin.engineHealth);
   return r;
 }

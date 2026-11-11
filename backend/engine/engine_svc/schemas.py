@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ Point = list[float]
 
 class ImageRef(BaseModel):
     path: str
-    polygon: Optional[list[Point]] = None
+    polygon: list[Point] | None = None
 
 
 class PairRef(BaseModel):
@@ -20,13 +20,13 @@ class PairRef(BaseModel):
 
 
 class RefCard(BaseModel):
-    before: Optional[ImageRef] = None
-    after: Optional[ImageRef] = None
+    before: ImageRef | None = None
+    after: ImageRef | None = None
 
 
 class Required(BaseModel):
-    change: Optional[float] = None
-    stain: Optional[float] = None
+    change: float | None = None
+    stain: float | None = None
 
 
 class ModelSpec(BaseModel):
@@ -42,8 +42,8 @@ class ManualPoints(BaseModel):
 class GradeOptions(BaseModel):
     stain_statistic: Literal["p90", "median"] = "p90"
     change_rule: Literal["area_weighted", "worst"] = "area_weighted"
-    models: dict[str, Optional[ModelSpec]] = Field(default_factory=dict)
-    manual_points: Optional[ManualPoints] = None
+    models: dict[str, ModelSpec | None] = Field(default_factory=dict)
+    manual_points: ManualPoints | None = None
 
 
 class GradeRequest(BaseModel):
@@ -53,7 +53,7 @@ class GradeRequest(BaseModel):
     adj_fibres: list[str] = Field(default_factory=lambda: ["silk", "cotton"])
     required: Required = Field(default_factory=Required)
     pairs: dict[str, PairRef]
-    ref_card: Optional[RefCard] = None
+    ref_card: RefCard | None = None
     options: GradeOptions = Field(default_factory=GradeOptions)
 
 
@@ -65,8 +65,24 @@ class InspectRequest(BaseModel):
 class DetectRequest(BaseModel):
     path: str
     expected_pieces: list[Literal["SPECIMEN", "ADJ1", "ADJ2", "REF_CARD"]] = Field(default_factory=lambda: ["SPECIMEN"])
+    background: Literal["auto", "white", "grey", "black"] = "auto"
 
 
 class RegisterRequest(BaseModel):
     before: ImageRef
     after: ImageRef
+
+
+class CompareRecord(BaseModel):
+    id: str
+    kind: str
+    iso_rating: float
+    features: dict
+    context: dict = Field(default_factory=dict)
+
+
+class CompareRequest(BaseModel):
+    name: Literal["m1_change", "m2_stain"]
+    candidate: ModelSpec
+    active: ModelSpec | None = None
+    records: list[CompareRecord]

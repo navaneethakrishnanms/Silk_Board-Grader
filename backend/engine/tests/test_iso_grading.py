@@ -3,8 +3,7 @@
 import pytest
 
 from silkgrade_engine import config
-from silkgrade_engine.iso_grading import (change_rating, grade_label, half_grade, stain_dE_gs,
-                                          stain_rating)
+from silkgrade_engine.iso_grading import change_rating, grade_label, half_grade, stain_dE_gs, stain_rating
 
 
 @pytest.mark.parametrize("grade,de", sorted(config.STAIN_SCALE_DE.items()))

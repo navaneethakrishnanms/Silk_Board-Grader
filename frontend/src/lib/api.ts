@@ -1,5 +1,6 @@
 /** Typed API client for `/api/v1` with transparent access-token refresh. */
 import type {
+  GradeKind,
   AlignmentCheckDTO, AuthTokens, DashboardDTO, DatasetStatsDTO, EngineHealthDTO, ModelVersionDTO, Paged,
   PublicSettingsDTO, SettingsDTO, TestDTO, TestSummaryDTO, UserDTO,
 } from '@silkgrade/shared';
@@ -134,5 +135,46 @@ export const api = {
   },
   activateModel: (id: string, on: boolean) => request<ModelVersionDTO[]>(`/models/${id}/${on ? 'activate' : 'deactivate'}`, { method: 'POST' }),
   engineHealth: () => request<EngineHealthDTO>('/engine/health'),
+  compareModel: (id: string) => request<CompareDTO>(`/models/${id}/compare`, { method: 'POST' }),
+  pilotSamples: () => request<{ sampleId: string; tests: number; devices: string[] }[]>('/pilot/samples'),
+  repeatability: (sampleId: string) => request<RepeatabilityDTO>(`/pilot/repeatability${qs({ sampleId })}`),
+  devices: (sampleId: string) => request<DevicesDTO>(`/pilot/devices${qs({ sampleId })}`),
+  coverage: () => request<CoverageDTO>('/pilot/coverage'),
+  shadow: () => request<ShadowDTO>('/pilot/shadow'),
   csvPath: (q: Record<string, unknown>) => `/export/tests.csv${qs(q)}`,
 };
+
+export interface RepeatabilityDTO {
+  sampleId: string;
+  tests: { id: string; reportNo: string; device: string; createdAt: string }[];
+  rows: { kind: GradeKind; n: number; min: number; max: number; range: number; mean: number; sd: number; halfGrades: number[]; stable: boolean }[];
+}
+export interface DevicesDTO {
+  sampleId: string;
+  devices: string[];
+  warnThreshold: number;
+  rows: { kind: GradeKind; perDevice: Record<string, number | null>; maxDiff: number | null; warn: boolean }[];
+}
+export interface CoverageDTO {
+  minPerGrade: number;
+  target: { min: number; max: number };
+  labelledTests: number;
+  progress: number;
+  table: { kind: GradeKind; counts: { grade: number; n: number; low: boolean }[] }[];
+}
+export interface ShadowDTO {
+  weekly: { week: string; n: number; exact: number; withinHalf: number; meanDiff: number }[];
+  byKind: { kind: GradeKind; n: number; exact: number; withinHalf: number }[];
+}
+
+export interface AgreementDTO { n: number; exact: number | null; withinHalf: number | null; qwk: number | null; mae: number | null }
+export interface CompareDTO {
+  model: string;
+  candidate: { id: string; version: string };
+  active: { id: string; version: string } | null;
+  records: number;
+  candidateAgreement: AgreementDTO | null;
+  activeAgreement: AgreementDTO | null;
+  formulaAgreement: AgreementDTO | null;
+  byKind: { kind: GradeKind; candidate: AgreementDTO; active: AgreementDTO }[];
+}

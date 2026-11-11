@@ -43,7 +43,13 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
       FILE_URL_SECRET: ${FILE_URL_SECRET:?set FILE_URL_SECRET in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      DATA_MODE: ${DATA_MODE:-mysql}
       STORAGE_ROOT: /storage
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_BUCKET: ${S3_BUCKET:-silkgrade}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-silkgrade}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-silkgrade-secret}
       ENGINE_URL: http://engine:8001
       ENGINE_INTERNAL_TOKEN: ${ENGINE_INTERNAL_TOKEN:-change-me-engine-token}
       LAB_NAME: ${LAB_NAME:-Bangalore Silk Board — Silk Testing Laboratory}

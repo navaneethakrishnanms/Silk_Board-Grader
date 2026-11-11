@@ -1,0 +1,340 @@
+{
+  "image": "..\\..\\docs\\client_samples_synthetic\\fabric_sheet.png",
+  "size": [
+    2400,
+    1700
+  ],
+  "analysis_scale": 0.6667,
+  "background": "white",
+  "detect_seconds": 2.61,
+  "pieces": [
+    {
+      "polygon": [
+        [
+          57.0,
+          84.0
+        ],
+        [
+          56.0,
+          507.0
+        ],
+        [
+          308.0,
+          541.0
+        ],
+        [
+          739.0,
+          508.0
+        ],
+        [
+          758.0,
+          78.0
+        ],
+        [
+          304.0,
+          48.0
+        ]
+      ],
+      "median_lab": [
+        82.05,
+        -14.0,
+        -9.01
+      ],
+      "chroma": 16.65,
+      "hue": "teal",
+      "colour_spread": 8.36,
+      "area_px": 319593,
+      "white_fabric": false,
+      "px_per_mm_est": 13.41,
+      "warnings": {
+        "blur": false,
+        "clipping": false,
+        "glare": false,
+        "lowRes": true
+      },
+      "metrics": {
+        "blur_var": 423.74,
+        "clipped_fraction": 0.0,
+        "glare_fraction": 0.0,
+        "region_mp": 0.675
+      },
+      "valid_share": 0.751,
+      "seam_px": 0,
+      "glare_share": 0.0
+    },
+    {
+      "polygon": [
+        [
+          1102.0,
+          81.0
+        ],
+        [
+          1100.0,
+          503.0
+        ],
+        [
+          1363.0,
+          504.0
+        ],
+        [
+          1365.0,
+          83.0
+        ]
+      ],
+      "median_lab": [
+        79.99,
+        -6.0,
+        -16.01
+      ],
+      "chroma": 17.1,
+      "hue": "blue",
+      "colour_spread": 0.74,
+      "area_px": 111543,
+      "white_fabric": false,
+      "px_per_mm_est": 7.92,
+      "warnings": {
+        "blur": true,
+        "clipping": false,
+        "glare": false,
+        "lowRes": true
+      },
+      "metrics": {
+        "blur_var": 44.9,
+        "clipped_fraction": 0.0,
+        "glare_fraction": 0.0,
+        "region_mp": 0.251
+      },
+      "valid_share": 0.812,
+      "seam_px": 0,
+      "glare_share": 0.0
+    },
+    {
+      "polygon": [
+        [
+          72.0,
+          600.0
+        ],
+        [
+          77.0,
+          1059.0
+        ],
+        [
+          1373.0,
+          1054.0
+        ],
+        [
+          1368.0,
+          593.0
+        ]
+      ],
+      "median_lab": [
+        82.03,
+        -14.0,
+        -9.02
+      ],
+      "chroma": 16.65,
+      "hue": "teal",
+      "colour_spread": 2.04,
+      "area_px": 597947,
+      "white_fabric": false,
+      "px_per_mm_est": 18.34,
+      "warnings": {
+        "blur": false,
+        "clipping": false,
+        "glare": false,
+        "lowRes": true
+      },
+      "metrics": {
+        "blur_var": 63.34,
+        "clipped_fraction": 0.0,
+        "glare_fraction": 0.0,
+        "region_mp": 1.345
+      },
+      "valid_share": 0.791,
+      "seam_px": 0,
+      "glare_share": 0.0
+    },
+    {
+      "polygon": [
+        [
+          1086.0,
+          54.0
+        ],
+        [
+          1053.0,
+          75.0
+        ],
+        [
+          930.0,
+          57.0
+        ],
+        [
+          829.0,
+          78.0
+        ],
+        [
+          832.0,
+          509.0
+        ],
+        [
+          1098.0,
+          510.0
+        ],
+        [
+          1103.0,
+          72.0
+        ]
+      ],
+      "median_lab": [
+        94.12,
+        -0.37,
+        1.78
+      ],
+      "chroma": 1.82,
+      "hue": "white",
+      "colour_spread": 1.46,
+      "area_px": 120432,
+      "white_fabric": true,
+      "px_per_mm_est": 8.23,
+      "warnings": {
+        "blur": true,
+        "clipping": true,
+        "glare": true,
+        "lowRes": true
+      },
+      "metrics": {
+        "blur_var": 50.01,
+        "clipped_fraction": 0.06139,
+        "glare_fraction": 0.06532,
+        "region_mp": 0.268
+      },
+      "valid_share": 0.752,
+      "seam_px": 0,
+      "glare_share": 0.0526
+    }
+  ],
+  "clusters": {
+    "piece": 1,
+    "k": 3,
+    "silhouette": 0.963,
+    "colours": [
+      {
+        "cluster": 0,
+        "role": "ground",
+        "lab": [
+          82.0,
+          -14.0,
+          -9.0
+        ],
+        "hue": "teal",
+        "share": 0.878
+      },
+      {
+        "cluster": 1,
+        "role": "motif 1",
+        "lab": [
+          39.2,
+          -21.8,
+          -11.3
+        ],
+        "hue": "teal",
+        "share": 0.095
+      },
+      {
+        "cluster": 2,
+        "role": "motif 2",
+        "lab": [
+          55.2,
+          -31.7,
+          26.7
+        ],
+        "hue": "green",
+        "share": 0.027
+      }
+    ]
+  },
+  "truth_checks": {
+    "specimen_printed": {
+      "matched_piece": 1,
+      "valid_px_outside_true_piece (frayed threads/background)": 0,
+      "covers_share_of_true_piece": 0.863
+    },
+    "adj_white_satin": {
+      "matched_piece": 4,
+      "valid_px_outside_true_piece (frayed threads/background)": 21,
+      "covers_share_of_true_piece": 0.796
+    },
+    "adj_light_blue": {
+      "matched_piece": 2,
+      "valid_px_outside_true_piece (frayed threads/background)": 0,
+      "covers_share_of_true_piece": 0.799
+    },
+    "original_fabric": {
+      "matched_piece": 3,
+      "valid_px_outside_true_piece (frayed threads/background)": 0,
+      "covers_share_of_true_piece": 0.812
+    }
+  },
+  "grading_seconds_full_res": 3.68,
+  "grading_timings_ms": {
+    "load_ms": 0.2,
+    "prepare_ms": 1437.9,
+    "register_ms": 1725.8,
+    "change_ms": 2756.5,
+    "stain_ms": 3612.3,
+    "total_ms": 3670.4
+  },
+  "grading_warnings": [
+    "noRefCard",
+    "lowRes",
+    "blur"
+  ],
+  "grading_decisions": {
+    "CHANGE_OVERALL": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING",
+        "PROVISIONAL"
+      ]
+    },
+    "CHANGE_GROUND": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING",
+        "PROVISIONAL"
+      ]
+    },
+    "CHANGE_MOTIF": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING",
+        "PROVISIONAL"
+      ]
+    },
+    "CHANGE_WORST": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING",
+        "PROVISIONAL"
+      ]
+    },
+    "STAIN_ADJ1": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING"
+      ]
+    },
+    "STAIN_ADJ2": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING"
+      ]
+    },
+    "STAIN_WORST": {
+      "decision": "REVIEW",
+      "reasons": [
+        "WARNING"
+      ]
+    }
+  }
+}

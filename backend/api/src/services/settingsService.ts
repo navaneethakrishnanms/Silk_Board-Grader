@@ -1,8 +1,8 @@
 /** Key/value settings stored in the DB `Setting` table, with defaults. */
 import type { Prisma } from '@prisma/client';
-import { CAPTURE_GUIDELINE, type PublicSettingsDTO, type SettingsDTO, type SettingsInput } from '@silkgrade/shared';
+import { CAPTURE_GUIDELINE, type ConsensusPolicy, type PublicSettingsDTO, type SettingsDTO, type SettingsInput } from '@silkgrade/shared';
 import { env } from '../config/env.js';
-import { prisma } from '../lib/prisma.js';
+import { dataMode, prisma } from '../lib/prisma.js';
 
 export const DEFAULT_SETTINGS: SettingsDTO = {
   labName: env.LAB_NAME,
@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS: SettingsDTO = {
   dE_F_verified: false,
   autoCompleteAuto: false,
   blindDisagreementLimit: 0.5,
+  consensusRule: 'third_assessor',
+  backgroundMode: 'auto',
 };
 
 type Key = keyof SettingsDTO;
@@ -37,6 +39,7 @@ export async function getSettings(): Promise<SettingsDTO> {
 export async function getPublicSettings(): Promise<PublicSettingsDTO> {
   const s = await getSettings();
   return {
+    dataMode,
     labName: s.labName,
     washMethods: s.washMethods,
     requiredPresets: s.requiredPresets,
@@ -59,4 +62,13 @@ export async function updateSettings(input: SettingsInput): Promise<SettingsDTO>
     ),
   );
   return getSettings();
+}
+
+/** Blind-labelling consensus policy from the settings (rule + A/B limit). */
+export function consensusPolicy(s: Pick<SettingsDTO, 'consensusRule' | 'blindDisagreementLimit'>): ConsensusPolicy {
+  return { rule: s.consensusRule ?? 'third_assessor', limit: s.blindDisagreementLimit ?? 0.5 };
+}
+
+export async function getConsensusPolicy(): Promise<ConsensusPolicy> {
+  return consensusPolicy(await getSettings());
 }

@@ -127,6 +127,8 @@ export interface GradeDTO {
   effectivePass: boolean | null;
   reviewed: boolean;
   hidden: boolean;
+  /** dataset mode only: where the blind A/B/C protocol stands */
+  blindState?: 'NEEDS_A' | 'NEEDS_B' | 'NEEDS_C' | 'LABELLED';
 }
 
 export interface TestSummaryDTO {
@@ -196,6 +198,8 @@ export interface DashboardDTO {
 }
 
 export interface PublicSettingsDTO {
+  /** 'memory' = demo mode: data is not saved */
+  dataMode?: 'mysql' | 'memory';
   labName: string;
   washMethods: string[];
   requiredPresets: { name: string; customer?: string | null; change: number | null; stain: number | null }[];
@@ -208,6 +212,9 @@ export interface PublicSettingsDTO {
 export interface SettingsDTO extends PublicSettingsDTO {
   autoCompleteAuto: boolean;
   blindDisagreementLimit: number;
+  consensusRule: 'third_assessor' | 'lower' | 'mean_round_down';
+  /** page / board behind the fabric — the client scans use white paper */
+  backgroundMode: 'auto' | 'white' | 'grey' | 'black';
 }
 
 export interface ModelVersionDTO {
@@ -232,7 +239,10 @@ export interface DatasetStatsDTO {
   counts: { kind: GradeKind; grade: number; n: number }[];
   minPerGrade: number;
   blind: { total: number; labelled: number; awaitingSecond: number; awaitingThird: number };
-  agreement: { kind: GradeKind; n: number; exact: number; withinHalf: number }[];
+  agreement: { kind: GradeKind; n: number; exact: number; withinHalf: number; qwk: number | null }[];
+  /** agreement is shown once at least this many A/B pairs exist */
+  agreementMinRecords: number;
+  consensusRule: string;
 }
 
 export interface AlignmentCheckDTO {

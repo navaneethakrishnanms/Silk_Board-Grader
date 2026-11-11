@@ -4,17 +4,17 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeGrade, fakeTest, makePrismaMock, users, type PrismaMock } from './helpers.js';
 
 const prismaMock: PrismaMock = makePrismaMock();
-vi.mock('../src/lib/prisma.js', () => ({ prisma: prismaMock }));
+vi.mock('../src/lib/prisma.js', () => ({ prisma: prismaMock, dataMode: 'mysql' }));
 
 const { createApp } = await import('../src/app.js');
-const { issueTokens } = await import('../src/services/authService.js');
+const { issueTokens, signAccessToken } = await import('../src/services/authService.js');
 const { presentTest } = await import('../src/services/presenter.js');
 const { fileUrl, verifyToken, signPath } = await import('../src/services/fileService.js');
 const { csvEscape } = await import('../src/utils/csv.js');
 const { transition, missingPieces } = await import('../src/services/testService.js');
 
 const app = createApp({ authRateLimit: 1000 });
-const bearer = (u: { id: string; role: string }) => `Bearer ${issueTokens(u as never).accessToken}`;
+const bearer = (u: { id: string; role: string }) => `Bearer ${signAccessToken(u as never).accessToken}`;
 
 beforeAll(async () => {
   (users.admin as { passwordHash: string }).passwordHash = await bcrypt.hash('Admin@12345', 4);
@@ -44,18 +44,42 @@ describe('auth', () => {
 
   it('requires a token for /me and refuses a refresh token as access token', async () => {
     expect((await request(app).get('/api/v1/me')).status).toBe(401);
-    const { refreshToken } = issueTokens(users.admin as never);
+    const { refreshToken } = await issueTokens(users.admin as never);
     expect((await request(app).get('/api/v1/me').set('Authorization', `Bearer ${refreshToken}`)).status).toBe(401);
     const ok = await request(app).get('/api/v1/me').set('Authorization', bearer(users.admin));
     expect(ok.status).toBe(200);
     expect(ok.body.email).toBe('admin@x.io');
   });
 
-  it('refreshes tokens', async () => {
-    const { refreshToken } = issueTokens(users.tester as never);
+  it('rotates refresh tokens and rejects a revoked one', async () => {
+    const { refreshToken } = await issueTokens(users.tester as never);
+    const stored = prismaMock.refreshToken.create.mock.calls.at(-1)![0].data;
+    prismaMock.refreshToken.findUnique.mockResolvedValueOnce({ id: 'rt1', ...stored, revokedAt: null });
     const r = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
     expect(r.status).toBe(200);
     expect(r.body.user.id).toBe('u-tester');
+    expect(prismaMock.refreshToken.update).toHaveBeenCalledWith({ where: { id: 'rt1' }, data: { revokedAt: expect.any(Date) } });
+    // the same (now revoked) token presented again -> 401 and every session of the user revoked
+    prismaMock.refreshToken.findUnique.mockResolvedValueOnce({ id: 'rt1', ...stored, revokedAt: new Date() });
+    prismaMock.refreshToken.updateMany.mockResolvedValueOnce({ count: 2 });
+    const again = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
+    expect(again.status).toBe(401);
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({ where: { userId: 'u-tester', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+  });
+
+  it('logout revokes the refresh token', async () => {
+    const { refreshToken } = await issueTokens(users.tester as never);
+    prismaMock.refreshToken.updateMany.mockResolvedValueOnce({ count: 1 });
+    const r = await request(app).post('/api/v1/auth/logout').send({ refreshToken });
+    expect(r.body).toEqual({ ok: true, revoked: true });
+  });
+
+  it('a password reset revokes all sessions of that user', async () => {
+    prismaMock.user.update.mockResolvedValueOnce({ ...users.tester });
+    prismaMock.refreshToken.updateMany.mockResolvedValueOnce({ count: 3 });
+    const r = await request(app).patch('/api/v1/users/u-tester').set('Authorization', bearer(users.admin)).send({ password: 'NewPass@123' });
+    expect(r.status).toBe(200);
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({ where: { userId: 'u-tester', revokedAt: null }, data: { revokedAt: expect.any(Date) } });
   });
 });
 
@@ -148,14 +172,27 @@ describe('blind (dataset) mode', () => {
     expect(dto.grades[0].expertGrades).toHaveLength(0); // cannot see assessor A
     expect(dto.changeGrade).toBeNull();
   });
-  it('reveals grades once A and B agree within 0.5', () => {
-    const eg = (u: string, g: number, t: number) => ({ id: u, userId: u, halfGrade: g, blind: true, reason: null, createdAt: new Date(t), user: { name: u } });
+  const eg = (u: string, g: number, t: number) => ({ id: u, userId: u, halfGrade: g, blind: true, reason: null, createdAt: new Date(t), user: { name: u } });
+  it('A != B (even by half a grade) needs a third assessor and stays hidden', () => {
     const t = fakeTest({ datasetMode: true, grades: [fakeGrade({ expertGrades: [eg('a', 4, 1), eg('b', 4.5, 2)] })] });
+    const dto = presentTest(t as never, viewer);
+    expect(dto.gradesHidden).toBe(true);
+    expect(dto.grades[0].blindState).toBe('NEEDS_C');
+    expect(dto.reviewReasons).toContain('NEEDS_THIRD');
+  });
+  it('locks the record when C grades, and reveals the app grade', () => {
+    const t = fakeTest({ datasetMode: true, grades: [fakeGrade({ expertGrades: [eg('a', 4, 1), eg('b', 4.5, 2), eg('c', 4.5, 3)] })] });
     const dto = presentTest(t as never, viewer);
     expect(dto.gradesHidden).toBe(false);
     expect(dto.grades[0].halfGrade).toBe(4.5);
-    expect(dto.grades[0].effectiveGrade).toBe(4);
+    expect(dto.grades[0].effectiveGrade).toBe(4.5);
+    expect(dto.grades[0].expertGrades).toHaveLength(3);
     expect(dto.labelled).toBe(true);
+  });
+  it('the lower rule still works when the lab selects it', () => {
+    const t = fakeTest({ datasetMode: true, grades: [fakeGrade({ expertGrades: [eg('a', 4, 1), eg('b', 4.5, 2)] })] });
+    const dto = presentTest(t as never, viewer, { rule: 'lower', limit: 0.5 });
+    expect(dto.grades[0].effectiveGrade).toBe(4);
   });
 });
 

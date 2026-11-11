@@ -1,0 +1,7 @@
+node_modules
+dist
+storage
+backend/engine
+**/*.md
+package-lock.json
+backend/api/prisma/migrations

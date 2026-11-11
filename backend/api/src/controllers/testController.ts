@@ -9,7 +9,7 @@ import { audit } from '../services/auditService.js';
 import { completeTest, ensurePreviewReport } from '../services/completionService.js';
 import { startGrading } from '../services/gradingService.js';
 import { presentTest, summarize, testInclude } from '../services/presenter.js';
-import { getSettings } from '../services/settingsService.js';
+import { getConsensusPolicy } from '../services/settingsService.js';
 import { absPath } from '../services/storageService.js';
 import * as svc from '../services/testService.js';
 import { badRequest, notFound } from '../utils/httpError.js';
@@ -17,7 +17,7 @@ import { badRequest, notFound } from '../utils/httpError.js';
 const id = (req: Request) => String(req.params.id);
 
 async function send(req: Request, res: Response, testId: string, status = 200) {
-  const { blindDisagreementLimit } = await getSettings();
+  const blindDisagreementLimit = await getConsensusPolicy();
   const t = await svc.loadTest(testId);
   res.status(status).json(presentTest(t, req.user!, blindDisagreementLimit));
 }
@@ -44,7 +44,7 @@ export async function create(req: Request, res: Response) {
 
 export async function list(req: Request, res: Response) {
   const q = parse(testListQuerySchema, req.query);
-  const { blindDisagreementLimit } = await getSettings();
+  const blindDisagreementLimit = await getConsensusPolicy();
   res.json(await svc.listTests(q, req.user!, blindDisagreementLimit));
 }
 

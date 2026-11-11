@@ -7,6 +7,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../config/env.js';
 import { badRequest } from '../utils/httpError.js';
+import { mirrorQuietly, storageDriver } from './storageDriver.js';
 
 export const storageRoot = () => env.storageRoot;
 
@@ -37,6 +38,7 @@ export async function storeOriginal(tmpFile: string, testId: string, role: strin
   await fsp.rm(tmpFile, { force: true });
   const sha256 = await sha256File(dest);
   const { size } = await fsp.stat(dest);
+  await mirrorQuietly(relPath(dest), dest);
   return { rel: relPath(dest), sha256, size };
 }
 
@@ -48,3 +50,13 @@ export function sha256File(p: string): Promise<string> {
 }
 
 export const exists = (rel: string | null | undefined) => !!rel && fs.existsSync(absPath(rel));
+
+/** Mirror a storage-relative file to the durable driver (no-op for local). */
+export async function mirror(rel: string | null | undefined) {
+  if (rel) await mirrorQuietly(rel, absPath(rel));
+}
+
+/** Ensure a working copy exists locally (fetches from S3 when using that driver). */
+export async function ensureLocal(rel: string): Promise<boolean> {
+  return storageDriver().ensureLocal(rel, absPath(rel));
+}

@@ -97,12 +97,22 @@ export const engineClient = {
   health: () => call<Record<string, unknown>>('GET', '/health', undefined, 5000),
   inspect: (path: string, expectWhite = false) =>
     call<EngineInspectResult>('POST', '/inspect', { path, expect_white: expectWhite }),
-  detectRegions: (path: string, expectedPieces: string[]) =>
-    call<{ regions: EngineRegion[]; width: number; height: number }>('POST', '/detect-regions', {
+  detectRegions: (path: string, expectedPieces: string[], background: string = 'auto') =>
+    call<{ regions: EngineRegion[]; width: number; height: number; background?: string }>('POST', '/detect-regions', {
       path,
       expected_pieces: expectedPieces,
+      background,
     }),
   register: (before: EngineImageRef, after: EngineImageRef) =>
     call<{ ok: boolean; method: string; inliers: number; message?: string }>('POST', '/register', { before, after }),
   grade: (req: EngineGradeRequest) => call<EngineGradeResponse>('POST', '/grade', req),
+  compareModels: (req: {
+    name: string;
+    candidate: { path: string; version: string };
+    active: { path: string; version: string } | null;
+    records: { id: string; kind: string; iso_rating: number; features: Record<string, unknown>; context: Record<string, unknown> }[];
+  }) =>
+    call<{ candidate_version: string; active_version: string; predictions: { id: string; kind: string; iso: number; candidate: number; active: number }[] }>(
+      'POST', '/models/compare', req,
+    ),
 };

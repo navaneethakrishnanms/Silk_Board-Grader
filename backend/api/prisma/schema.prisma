@@ -77,8 +77,9 @@ model User {
   role         Role
   active       Boolean       @default(true)
   createdAt    DateTime      @default(now())
-  tests        Test[]        @relation("TestCreatedBy")
-  expertGrades ExpertGrade[]
+  tests         Test[]         @relation("TestCreatedBy")
+  expertGrades  ExpertGrade[]
+  refreshTokens RefreshToken[]
 }
 
 model Sample {
@@ -237,4 +238,18 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+// + Refresh tokens are tracked so they can be revoked (logout, password change,
+//   deactivation) and rotated on every refresh. Only a SHA-256 of the token id is stored.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

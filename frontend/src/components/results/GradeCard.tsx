@@ -1,7 +1,7 @@
 /** Grade card (S10) + expert review controls (S12). */
 import { Fragment, useState } from 'react';
 import { ChevronDown, EyeOff } from 'lucide-react';
-import { GRADE_CODE, GRADE_KIND_LABEL, GRADES, gradeLabel, REVIEW_REASON_LABEL, type GradeDTO, type GradeFeatures } from '@silkgrade/shared';
+import { BLIND_STATE_LABEL, GRADE_CODE, GRADE_KIND_LABEL, GRADES, gradeLabel, REVIEW_REASON_LABEL, type GradeDTO, type GradeFeatures } from '@silkgrade/shared';
 import { Badge, Button, Card, Select, Textarea } from '@/components/ui';
 import { cn, fmt, fmtDateTime, labToHex } from '@/lib/utils';
 import { DecisionBadges, GradeChip, GradeScale, PassBadge } from './GradeBits';
@@ -98,7 +98,10 @@ export function GradeCard({ g, required, reviewable, onReview, blind, compact }:
             {g.kind.startsWith('CHANGE_') && <Swatches f={g.features} />}
           </div>
           {g.hidden ? (
-            <p className="muted mt-1 text-sm">Grades hidden — blind labelling</p>
+            <p className="muted mt-1 flex flex-wrap items-center gap-2 text-sm">
+              Grades hidden — blind labelling
+              {g.blindState && <Badge tone={g.blindState === 'NEEDS_C' ? 'amber' : 'neutral'}>{BLIND_STATE_LABEL[g.blindState]}</Badge>}
+            </p>
           ) : (
             <>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">

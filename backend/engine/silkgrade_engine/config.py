@@ -61,6 +61,22 @@ CLIP_LEVEL = 254.5 / 255.0
 GLARE_L_MIN = 95.0              # L* above this ...
 GLARE_C_MAX = 3.0               # ... and C* below this inside fabric = glare
 GLARE_MIN_BLOB_FRACTION = 0.0005  # ignore specks smaller than this share of region
+# White / lustrous fabric (satin adjacent strip): absolute L* > 95 would mark the whole strip,
+# so glare is "much lighter than this fabric's own median" instead.  TUNE on client scans (WP4).
+GLARE_WHITE_REL_DL = 3.5        # L* above the region median by more than this ...
+GLARE_WHITE_MIN_L = 90.0        # ... and at least this light
+GLARE_WHITE_MAX_SHARE = 0.25    # a "glare" covering more than this share is sheen of the whole strip -> not masked
+
+# Page / board behind the fabric (client sheet scans are on WHITE paper). Settings: auto | white | grey | black.
+BACKGROUND_MODE_DEFAULT = "auto"
+WHITE_BG_MIN_L = 88.0           # auto mode: border median lighter than this -> white background
+WHITE_BG_TEXTURE_SIGMA = 2.0    # local-std window (px, at detection scale) for the texture cue
+WHITE_BG_TEXTURE_FACTOR = 2.0   # fabric = local L* texture > this x the paper's own texture ...
+WHITE_BG_TEXTURE_FLOOR = 0.35   # ... and at least this (L* units)
+WHITE_BG_DL_FACTOR = 4.0        # or darker than the paper by > this x paper noise ...
+WHITE_BG_DL_FLOOR = 1.2         # ... and at least this many L* units
+WHITE_BG_CLOSE_PX = 21          # fill sheen highlights / weave gaps inside white pieces
+WHITE_BG_OPEN_PX = 15           # remove loose threads and paper specks
 LOW_RES_MIN_MP = 3.0            # fabric region must be >= 3 MP-equivalent area
 
 # Warnings that force a REVIEW decision. "noRefCard" is informational only:
@@ -94,7 +110,7 @@ RANSAC_REPROJ_PX = 3.0
 # ---------------------------------------------------------------------------
 CLUSTER_K_RANGE = (2, 5)
 CLUSTER_SAMPLE = 4000           # pixels sampled for k-means / silhouette
-CLUSTER_MIN_SHARE = 0.03        # clusters smaller than this are merged away
+CLUSTER_MIN_SHARE = 0.015       # clusters smaller than this are merged away (WP4: thin stems ≈ 2.5 %)
 CLUSTER_BOUNDARY_ERODE_PX = 2
 
 # ---------------------------------------------------------------------------

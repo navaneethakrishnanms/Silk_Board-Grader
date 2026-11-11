@@ -7,6 +7,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:memory": "tsx src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -20,6 +21,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1166.0",
     "@prisma/client": "^6.1.0",
     "@silkgrade/shared": "*",
     "archiver": "^7.0.1",
@@ -37,6 +39,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/archiver": "^6.0.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
@@ -46,6 +49,8 @@
     "@types/node": "^22.10.2",
     "@types/pdfkit": "^0.13.8",
     "@types/supertest": "^6.0.2",
+    "adm-zip": "^0.5.18",
+    "pdfjs-dist": "^4.10.38",
     "prisma": "^6.1.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",

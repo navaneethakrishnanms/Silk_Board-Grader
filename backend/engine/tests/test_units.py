@@ -16,7 +16,8 @@ RNG = np.random.default_rng(0)
 # --- quality -----------------------------------------------------------------
 
 def _fabric(h=400, w=600, lab=(50, 30, 10), grain=0.02):
-    base = np.empty((h, w, 3)); base[...] = lab
+    base = np.empty((h, w, 3))
+    base[...] = lab
     rgb = lab_to_srgb(base).astype(np.float32)
     return np.clip(rgb + RNG.normal(0, grain, rgb.shape), 0, 1).astype(np.float32)
 
@@ -70,11 +71,13 @@ def test_boundary_crossing():
 
 
 def test_bootstrap_paired_on_uniform_patch_is_tight():
-    lab_b = np.zeros((100, 100, 3), np.float32); lab_b[...] = (50, 10, 10)
-    lab_a = lab_b.copy(); lab_a[..., 0] += 3.4
+    lab_b = np.zeros((100, 100, 3), np.float32)
+    lab_b[...] = (50, 10, 10)
+    lab_a = lab_b.copy()
+    lab_a[..., 0] += 3.4
     mask = np.ones((100, 100), bool)
-    from silkgrade_engine.iso_grading import change_rating
     from silkgrade_engine.colour import delta_e_2000
+    from silkgrade_engine.iso_grading import change_rating
     boot = uncertainty.bootstrap_paired(lab_b, lab_a, mask, lambda b, a: change_rating(float(delta_e_2000(b, a))), n=50)
     assert boot.std() < 1e-6 and boot.mean() == pytest.approx(3.0, abs=0.05)
 
@@ -90,7 +93,8 @@ def test_formula_only_default():
 def test_linear_json_model(tmp_path):
     spec = {"name": "m1_change", "version": "0.1.0-test", "type": "linear",
             "features": ["iso_rating"], "coef": [1.0], "intercept": 0.25, "residual_std": 0.1}
-    p = tmp_path / "m.json"; p.write_text(json.dumps(spec))
+    p = tmp_path / "m.json"
+    p.write_text(json.dumps(spec))
     m = model.load_active({"path": str(p), "version": "0.1.0-test"}, "m1_change")
     assert m.version == "0.1.0-test"
     rating, std = model.correct(m, model.flatten_features({}, 3.5))
@@ -98,7 +102,8 @@ def test_linear_json_model(tmp_path):
 
 
 def test_broken_model_falls_back_to_formula(tmp_path):
-    p = tmp_path / "bad.json"; p.write_text("{not json")
+    p = tmp_path / "bad.json"
+    p.write_text("{not json")
     assert model.load_active({"path": str(p), "version": "x"}, "m2_stain").version == "formula-only"
 
 
@@ -136,7 +141,8 @@ def test_reference_card_removes_colour_cast():
 
 def test_detect_regions_finds_three_pieces():
     h, w = 600, 900
-    lab = np.zeros((h, w, 3)); lab[...] = (35, 0, 0)
+    lab = np.zeros((h, w, 3))
+    lab[...] = (35, 0, 0)
     lab[100:500, 60:300] = (50, 40, 20)     # specimen (chromatic)
     lab[100:500, 340:580] = (93, 0, 2)      # adj 1 (white)
     lab[100:500, 620:860] = (94, 0, 1)      # adj 2 (white)
@@ -144,12 +150,15 @@ def test_detect_regions_finds_three_pieces():
     regs = segment.detect_regions(rgb, to_lab(rgb), ["SPECIMEN", "ADJ1", "ADJ2"], 1.0)
     pieces = {r["piece_guess"]: r for r in regs}
     assert set(pieces) == {"SPECIMEN", "ADJ1", "ADJ2"}
-    xs = lambda r: np.mean([p[0] for p in r["polygon"]])
+    def xs(r):
+        return np.mean([p[0] for p in r["polygon"]])
+
     assert xs(pieces["SPECIMEN"]) < 300 and xs(pieces["ADJ1"]) < xs(pieces["ADJ2"])
 
 
 def test_fabric_mask_keeps_print_motifs():
-    lab = np.zeros((300, 300, 3), np.float32); lab[...] = (40, 0, 0)
+    lab = np.zeros((300, 300, 3), np.float32)
+    lab[...] = (40, 0, 0)
     lab[30:270, 30:270] = (45, 40, 20)
     lab[100:150, 100:150] = (80, 5, 70)  # light motif must stay part of the fabric
     poly = segment.polygon_mask((300, 300), [[25, 25], [275, 25], [275, 275], [25, 275]])
@@ -161,10 +170,29 @@ def test_fabric_mask_keeps_print_motifs():
 
 def test_load_8bit_and_16bit(tmp_path):
     img = (RNG.uniform(0, 1, (40, 60, 3)) * 65535).astype(np.uint16)
-    p16 = tmp_path / "a.tif"; cv2.imwrite(str(p16), img)
+    p16 = tmp_path / "a.tif"
+    cv2.imwrite(str(p16), img)
     li = load(p16)
     assert li.bit_depth == 16 and li.rgb.shape == (40, 60, 3)
     np.testing.assert_allclose(li.rgb, img[:, :, ::-1] / 65535.0, atol=1e-6)
-    p8 = tmp_path / "a.jpg"; cv2.imwrite(str(p8), (img // 257).astype(np.uint8))
+    p8 = tmp_path / "a.jpg"
+    cv2.imwrite(str(p8), (img // 257).astype(np.uint8))
     li8 = load(p8)
     assert li8.bit_depth == 8 and li8.sha256 == sha256_file(p8)
+
+
+def test_bootstrap_on_thin_scattered_region_has_no_nan():
+    """Regression: a sparse print-motif mask used to give empty windows -> NaN ratings."""
+    lab_b = np.zeros((200, 200, 3), np.float32)
+    lab_b[...] = (50, 10, 10)
+    lab_a = lab_b.copy()
+    lab_a[..., 0] += 2.0
+    mask = np.zeros((200, 200), bool)
+    mask[::9, ::9] = True  # 500 isolated pixels spread over the whole image
+    from silkgrade_engine.colour import delta_e_2000
+    from silkgrade_engine.iso_grading import change_rating
+
+    boot = uncertainty.bootstrap_paired(lab_b, lab_a, mask, lambda b, a: change_rating(float(delta_e_2000(b, a))), n=60)
+    assert boot.size == 60 and np.all(np.isfinite(boot))
+    ci = uncertainty.interval(change_rating(2.0), np.append(boot, np.nan))["ci"]
+    assert all(np.isfinite(ci))

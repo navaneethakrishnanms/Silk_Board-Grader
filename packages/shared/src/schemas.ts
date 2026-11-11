@@ -110,6 +110,8 @@ export const settingsSchema = z.object({
   changeRule: z.enum(['area_weighted', 'worst']).optional(),
   autoCompleteAuto: z.boolean().optional(),
   blindDisagreementLimit: z.number().min(0).max(2).optional(),
+  consensusRule: z.enum(['third_assessor', 'lower', 'mean_round_down']).optional(),
+  backgroundMode: z.enum(['auto', 'white', 'grey', 'black']).optional(),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 

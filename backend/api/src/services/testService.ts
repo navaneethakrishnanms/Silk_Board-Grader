@@ -1,7 +1,7 @@
 /** Test workflow + status machine (Section 6). */
 import type { Prisma } from '@prisma/client';
 import {
-  canTransition, type AlignmentInput, type CreateTestInput, type ImageRole, type Piece, type SaveRegionsInput,
+  canTransition, DEFAULT_CONSENSUS, type AlignmentInput, type ConsensusPolicy, type CreateTestInput, type ImageRole, type Piece, type SaveRegionsInput,
   type Side, type TestListQuery, type TestStatus, type UpdateTestInput,
 } from '@silkgrade/shared';
 import { engineClient } from '../clients/engineClient.js';
@@ -10,7 +10,8 @@ import { badRequest, conflict, notFound } from '../utils/httpError.js';
 import { asArray } from '../utils/json.js';
 import { audit } from './auditService.js';
 import { summarize, testInclude, type FullTest, type Viewer } from './presenter.js';
-import { storeOriginal } from './storageService.js';
+import { getSettings } from './settingsService.js';
+import { mirror, storeOriginal } from './storageService.js';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -129,7 +130,7 @@ export async function updateTest(id: string, input: UpdateTestInput, user: Viewe
   return loadTest(id);
 }
 
-export async function listTests(q: TestListQuery, viewer: Viewer, limit = 0.5) {
+export async function listTests(q: TestListQuery, viewer: Viewer, limit: ConsensusPolicy = DEFAULT_CONSENSUS) {
   const where: Prisma.TestWhereInput = {};
   if (q.status) where.status = { in: q.status.split(',') as TestStatus[] };
   if (q.sampleId) where.sampleId = { contains: q.sampleId };
@@ -180,6 +181,7 @@ export async function uploadImage(
 
   const stored = await storeOriginal(file.path, id, role, file.originalname);
   const info = await engineClient.inspect(stored.rel, role.startsWith('ADJ'));
+  await mirror(info.preview_path);
 
   const replaced = test.images.filter((i) => i.role === role && i.side === side);
   const image = await prisma.$transaction(async (tx) => {
@@ -231,11 +233,12 @@ export async function detectRegions(id: string, side: Side, user: Viewer) {
   if (!sideEditable(test.status, side)) throw conflict(`Cannot edit ${side}-wash regions in status ${test.status}`);
   const imgs = test.images.filter((i) => i.side === side);
   if (!imgs.length) throw badRequest(`Upload ${side}-wash images first`);
+  const { backgroundMode } = await getSettings();
   const results: { img: (typeof imgs)[number]; regions: Awaited<ReturnType<typeof engineClient.detectRegions>>['regions'] }[] = [];
   for (const img of imgs) {
     const piece = rolePiece(img.role);
     const expected = piece ? [piece] : requiredPieces(test.adjCount);
-    const det = await engineClient.detectRegions(img.path, expected);
+    const det = await engineClient.detectRegions(img.path, expected, backgroundMode);
     results.push({ img, regions: det.regions });
   }
   await prisma.$transaction(async (tx) => {

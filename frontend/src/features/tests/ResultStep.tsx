@@ -69,7 +69,7 @@ export function ResultStep({ test, onChange }: { test: TestDTO; onChange: (t: Te
   const locked = test.status === 'COMPLETED' || test.status === 'VOID';
   const reviewable = (g: GradeDTO) => {
     if (!isExpert || locked) return false;
-    if (test.datasetMode) return !g.expertGrades.some((e) => e.userId === user?.id) && !test.labelled;
+    if (test.datasetMode) return !g.expertGrades.some((e) => e.userId === user?.id) && g.blindState !== 'LABELLED';
     // REVIEW grades need a decision; on a test sent to review, any grade may be accepted/overridden once
     return g.decision === 'REVIEW' ? !g.reviewed : test.status === 'NEEDS_REVIEW' && g.expertGrades.length === 0;
   };

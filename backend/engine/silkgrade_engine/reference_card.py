@@ -80,7 +80,9 @@ def apply(rgb: np.ndarray, corr: CardCorrection) -> np.ndarray:
     return np.clip(linear_to_srgb(out), 0.0, 1.0).astype(np.float32)
 
 
-def correct(rgb: np.ndarray, quad: list[list[float]] | None, method: str = "linear3x3") -> tuple[np.ndarray, CardCorrection | None]:
+def correct(
+    rgb: np.ndarray, quad: list[list[float]] | None, method: str = "linear3x3"
+) -> tuple[np.ndarray, CardCorrection | None]:
     if not quad or len(quad) < 4:
         return rgb, None
     corr = fit(sample_patches(rgb, quad), method)

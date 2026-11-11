@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  blindState, canTransition, consensus, createTestSchema, expertGradeSchema, gradeLabel, gradeTone,
+  blindState, canTransition, consensus, quadraticWeightedKappa, createTestSchema, expertGradeSchema, gradeLabel, gradeTone,
   hasRole, toHalfGrade,
 } from './index.js';
 
@@ -51,13 +51,27 @@ describe('schemas', () => {
 
 describe('blind consensus', () => {
   const m = (u: string, g: number, t: number) => ({ userId: u, halfGrade: g, blind: true, createdAt: new Date(t) });
-  it('follows the A/B/C protocol', () => {
+  it('default rule: a third assessor decides ANY disagreement', () => {
     expect(blindState([])).toBe('NEEDS_A');
     expect(blindState([m('a', 4, 1)])).toBe('NEEDS_B');
-    expect(blindState([m('a', 4, 1), m('b', 4.5, 2)])).toBe('LABELLED');
-    expect(consensus([m('a', 4, 1), m('b', 4.5, 2)], true)).toBe(4);
-    expect(blindState([m('a', 4, 1), m('b', 3, 2)])).toBe('NEEDS_C');
-    expect(consensus([m('a', 4, 1), m('b', 3, 2)], true)).toBeNull();
+    expect(blindState([m('a', 4, 1), m('b', 4, 2)])).toBe('LABELLED');
+    expect(consensus([m('a', 4, 1), m('b', 4, 2)], true)).toBe(4);
+    expect(blindState([m('a', 4, 1), m('b', 4.5, 2)])).toBe('NEEDS_C');
+    expect(consensus([m('a', 4, 1), m('b', 4.5, 2)], true)).toBeNull();
+    expect(consensus([m('a', 4, 1), m('b', 4.5, 2), m('c', 4.5, 3)], true)).toBe(4.5);
     expect(consensus([m('a', 4, 1), m('b', 3, 2), m('c', 3.5, 3)], true)).toBe(3.5);
+  });
+  it('lower and mean_round_down rules accept small differences', () => {
+    const lower = { rule: 'lower' as const, limit: 0.5 };
+    const mean = { rule: 'mean_round_down' as const, limit: 0.5 };
+    expect(consensus([m('a', 4, 1), m('b', 4.5, 2)], true, lower)).toBe(4);
+    expect(consensus([m('a', 4, 1), m('b', 4.5, 2)], true, mean)).toBe(4);
+    expect(consensus([m('a', 3, 1), m('b', 4, 2)], true, { rule: 'mean_round_down', limit: 1 })).toBe(3.5);
+    expect(blindState([m('a', 4, 1), m('b', 3, 2)], lower)).toBe('NEEDS_C');
+  });
+  it('computes quadratic weighted kappa', () => {
+    expect(quadraticWeightedKappa([4, 4.5, 3, 2], [4, 4.5, 3, 2])).toBeCloseTo(1);
+    expect(quadraticWeightedKappa([5, 5, 1, 1], [1, 1, 5, 5])!).toBeLessThan(0);
+    expect(quadraticWeightedKappa([], [])).toBeNull();
   });
 });

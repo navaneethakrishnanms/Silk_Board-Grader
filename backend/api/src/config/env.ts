@@ -9,7 +9,8 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(4000),
   API_PREFIX: z.string().default('/api/v1'),
-  DATABASE_URL: z.string().min(1),
+  DATA_MODE: z.enum(['mysql', 'memory']).default('mysql'),
+  DATABASE_URL: z.string().default(''),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_ACCESS_TTL: z.string().default('15m'),
@@ -18,6 +19,14 @@ const schema = z.object({
   FILE_URL_TTL_SECONDS: z.coerce.number().default(3600),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   STORAGE_ROOT: z.string().default('../../storage'),
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  S3_ENDPOINT: z.string().default(''),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().default('silkgrade'),
+  S3_ACCESS_KEY: z.string().default(''),
+  S3_SECRET_KEY: z.string().default(''),
+  S3_PREFIX: z.string().default(''),
+  S3_FORCE_PATH_STYLE: z.string().default('true'),
   MAX_UPLOAD_MB: z.coerce.number().default(40),
   ENGINE_URL: z.string().default('http://127.0.0.1:8001'),
   ENGINE_INTERNAL_TOKEN: z.string().default(''),
@@ -28,9 +37,10 @@ const schema = z.object({
   SEED_DEMO: z.string().default('true'),
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema
+  .refine((v) => v.DATA_MODE === 'memory' || v.DATABASE_URL.length > 0, { message: 'DATABASE_URL is required when DATA_MODE=mysql', path: ['DATABASE_URL'] })
+  .safeParse(process.env);
 if (!parsed.success) {
-  // eslint-disable-next-line no-console
   console.error('Invalid environment configuration:', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }

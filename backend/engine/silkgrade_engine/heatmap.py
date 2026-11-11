@@ -24,7 +24,8 @@ def render(after_rgb: np.ndarray, emap: np.ndarray, max_de: float, out_path: str
     out = grey.copy()
     out[valid] = (alpha * cmap[valid] + (1 - alpha) * grey[valid]).astype(np.uint8)
     out = _legend(out, max_de)
-    cv2.imwrite(str(out_path), out[:, :, ::-1])
+    params = [cv2.IMWRITE_JPEG_QUALITY, 88] if out_path.suffix.lower() in {".jpg", ".jpeg"} else []
+    cv2.imwrite(str(out_path), out[:, :, ::-1], params)
     return str(out_path)
 
 

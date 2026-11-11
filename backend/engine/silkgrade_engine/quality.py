@@ -42,18 +42,42 @@ def glare_mask(lab: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
     return keep[labels]
 
 
-def check(rgb: np.ndarray, lab: np.ndarray, mask: np.ndarray | None = None,
-          full_res_area_px: float | None = None, expect_white: bool = False) -> dict:
+def glare_mask_white(lab: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
+    """Specular highlights on white / lustrous fabric: blobs much lighter than the fabric's own
+    median (and near-neutral). If the "glare" would cover a large share of the region it is the
+    fabric's overall sheen, not a highlight, and nothing is masked."""
+    region = mask if mask is not None else np.ones(lab.shape[:2], dtype=bool)
+    if region.sum() < 50:
+        return np.zeros_like(region)
+    L = lab[..., 0]
+    med = float(np.median(L[region]))
+    g = region & (L > max(config.GLARE_WHITE_MIN_L, med + config.GLARE_WHITE_REL_DL)) & (chroma(lab) < config.GLARE_C_MAX * 2)
+    if not g.any() or g.sum() > config.GLARE_WHITE_MAX_SHARE * region.sum():
+        return np.zeros_like(region)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(g.astype(np.uint8), connectivity=8)
+    min_area = max(4, int(config.GLARE_MIN_BLOB_FRACTION * region.sum()))
+    keep = np.zeros(n, dtype=bool)
+    keep[1:] = stats[1:, cv2.CC_STAT_AREA] >= min_area
+    return keep[labels]
+
+
+def check(
+    rgb: np.ndarray,
+    lab: np.ndarray,
+    mask: np.ndarray | None = None,
+    full_res_area_px: float | None = None,
+    expect_white: bool = False,
+) -> dict:
     """Run all checks on a (downscaled) image region.
 
     ``full_res_area_px`` is the fabric area at original resolution, used for the
-    low-resolution check. ``expect_white``: glare on a white adjacent fabric is
-    indistinguishable from the fabric itself, so it is only checked via clipping.
+    low-resolution check. ``expect_white``: white adjacent fabric uses the relative
+    highlight detector (absolute L* > 95 would flag the whole white strip).
     """
     region = mask if mask is not None else np.ones(rgb.shape[:2], dtype=bool)
     blur = blur_score(rgb, region)
     clip = clipping_fraction(rgb, region)
-    glare = glare_mask(lab, region) if not expect_white else np.zeros_like(region)
+    glare = glare_mask_white(lab, region) if expect_white else glare_mask(lab, region)
     glare_share = float(glare.sum()) / max(1.0, float(region.sum()))
     area_px = full_res_area_px if full_res_area_px is not None else float(region.sum())
     mp = area_px / 1e6
@@ -64,6 +88,10 @@ def check(rgb: np.ndarray, lab: np.ndarray, mask: np.ndarray | None = None,
         "glare": bool(glare_share > config.GLARE_MIN_BLOB_FRACTION),
         "lowRes": bool(mp < config.LOW_RES_MIN_MP),
     }
-    metrics = {"blur_var": round(blur, 2), "clipped_fraction": round(clip, 5),
-               "glare_fraction": round(glare_share, 5), "region_mp": round(mp, 3)}
+    metrics = {
+        "blur_var": round(blur, 2),
+        "clipped_fraction": round(clip, 5),
+        "glare_fraction": round(glare_share, 5),
+        "region_mp": round(mp, 3),
+    }
     return {"warnings": warnings, "metrics": metrics, "glare_mask": glare}

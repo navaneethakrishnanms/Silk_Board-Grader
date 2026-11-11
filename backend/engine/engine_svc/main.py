@@ -20,7 +20,7 @@ from silkgrade_engine import config as engine_config
 from silkgrade_engine.pipeline import check_alignment, detect, grade_test, inspect_image
 
 from . import settings
-from .schemas import DetectRequest, GradeRequest, InspectRequest, RegisterRequest
+from .schemas import CompareRequest, DetectRequest, GradeRequest, InspectRequest, RegisterRequest
 
 log = logging.getLogger("engine_svc")
 logging.basicConfig(level=settings.LOG_LEVEL.upper())
@@ -40,7 +40,7 @@ def resolve(rel: str) -> Path:
     try:
         p.relative_to(settings.STORAGE_ROOT)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"path outside storage: {rel}")
+        raise HTTPException(status_code=400, detail=f"path outside storage: {rel}") from None
     if not p.exists():
         raise HTTPException(status_code=404, detail=f"file not found: {rel}")
     return p
@@ -79,7 +79,7 @@ def inspect(req: InspectRequest) -> dict:
         out = inspect_image(str(src), str(preview), expect_white=req.expect_white)
     except Exception as e:  # unreadable / unsupported file
         log.exception("inspect failed")
-        raise HTTPException(status_code=422, detail=f"cannot read image: {e}")
+        raise HTTPException(status_code=422, detail=f"cannot read image: {e}") from e
     out["preview_path"] = rel(out["preview_path"])
     return out
 
@@ -87,7 +87,7 @@ def inspect(req: InspectRequest) -> dict:
 @app.post("/detect-regions", dependencies=[Depends(check_token)])
 def detect_regions(req: DetectRequest) -> dict:
     src = resolve(req.path)
-    return detect(str(src), list(req.expected_pieces))
+    return detect(str(src), list(req.expected_pieces), req.background)
 
 
 @app.post("/register", dependencies=[Depends(check_token)])
@@ -96,6 +96,26 @@ def register_pair(req: RegisterRequest) -> dict:
     before = {"path": str(resolve(req.before.path)), "polygon": req.before.polygon}
     after = {"path": str(resolve(req.after.path)), "polygon": req.after.polygon}
     return check_alignment(before, after)
+
+
+@app.post("/models/compare", dependencies=[Depends(check_token)])
+def compare_models(req: CompareRequest) -> dict:
+    """Run a candidate model (and the active one, if any) on past labelled records.
+    Returns the continuous rating of each, plus the ISO rating, per record."""
+    from silkgrade_engine import model as mdl
+
+    cand = mdl.load_active({"path": str(resolve(req.candidate.path)), "version": req.candidate.version}, req.name)
+    if getattr(cand, "is_formula_only", False):
+        raise HTTPException(status_code=422, detail="candidate model could not be loaded")
+    active = (mdl.load_active({"path": str(resolve(req.active.path)), "version": req.active.version}, req.name)
+              if req.active else mdl.FormulaOnly(req.name))
+    out = []
+    for r in req.records:
+        flat = mdl.flatten_features(r.features, r.iso_rating, r.context)
+        c, _ = cand.predict(flat)
+        a, _ = active.predict(flat)
+        out.append({"id": r.id, "kind": r.kind, "iso": r.iso_rating, "candidate": round(c, 4), "active": round(a, 4)})
+    return {"candidate_version": cand.version, "active_version": active.version, "predictions": out}
 
 
 @app.post("/grade", dependencies=[Depends(check_token)])
@@ -108,7 +128,7 @@ def grade(req: GradeRequest) -> dict:
     for side in ("before", "after"):
         if rc.get(side):
             rc[side]["path"] = str(resolve(rc[side]["path"]))
-    for name, spec in list((body["options"].get("models") or {}).items()):
+    for spec in list((body["options"].get("models") or {}).values()):
         if spec:
             spec["path"] = str(resolve(spec["path"]))
     if body["options"].get("manual_points") is None:
@@ -118,7 +138,7 @@ def grade(req: GradeRequest) -> dict:
     try:
         result = grade_test(body, out_dir)
     except KeyError as e:
-        raise HTTPException(status_code=422, detail=f"missing pair: {e}")
+        raise HTTPException(status_code=422, detail=f"missing pair: {e}") from e
     for g in result["grades"]:
         g["heatmap_path"] = rel(g.get("heatmap_path"))
     return result

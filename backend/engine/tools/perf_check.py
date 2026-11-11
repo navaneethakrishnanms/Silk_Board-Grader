@@ -18,8 +18,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from silkgrade_engine import grade_test  # noqa: E402
-from tools.make_synthetic import (WHITE_SILK, compose, fabric_rect, plain, polygon_of,  # noqa: E402
-                                  sensor_noise, texture)
+from tools.make_synthetic import WHITE_SILK, compose, fabric_rect, plain, polygon_of, sensor_noise, texture  # noqa: E402
 
 BUDGET_S = 5.0
 

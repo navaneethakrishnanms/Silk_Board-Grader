@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { GRADES, gradeLabel, hasRole, type CreateTestInput, type TestDTO } from '@silkgrade/shared';
 import { Button, Card, CardHeader, ErrorBox, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from '@/components/ui';
 import { api } from '@/lib/api';
+import { scanCode } from '@/lib/scan';
 import { useAuth } from '@/lib/auth';
 import { toast } from '@/lib/utils';
 import { Stepper } from './Stepper';
@@ -67,12 +68,10 @@ export function TestDetailsForm({ existing, onSaved }: { existing?: TestDTO; onS
   });
 
   async function scanQr(file: File) {
-    const BD = (window as unknown as { BarcodeDetector?: new (o: unknown) => { detect: (b: ImageBitmap) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
-    if (!BD) return toast.info('QR scanning is not supported in this browser — type the sample ID.');
     try {
-      const codes = await new BD({ formats: ['qr_code', 'code_128', 'ean_13'] }).detect(await createImageBitmap(file));
-      if (codes[0]) set('sampleId', codes[0].rawValue.trim());
-      else toast.info('No code found in the photo');
+      const code = await scanCode(file);
+      if (code) set('sampleId', code);
+      else toast.info('No QR code or barcode found in the photo — type the sample ID.');
     } catch (e) { toast.error(e); }
   }
 

@@ -57,13 +57,15 @@ export function DatasetPage() {
             </div>
           </Card>
           <Card>
-            <CardHeader title="Inter-assessor agreement" subtitle="Assessor A vs B on the same grades (the human benchmark)" />
-            {d.agreement.length === 0 ? <div className="p-4"><Empty>No grades with two expert labels yet.</Empty></div> : (
+            <CardHeader title="Inter-assessor agreement" subtitle={`Assessor A vs B on the same grades (the human benchmark) · consensus rule: ${d.consensusRule.replace(/_/g, ' ')}`} />
+            {d.agreement.reduce((s, a) => s + a.n, 0) < d.agreementMinRecords ? (
+              <div className="p-4"><Empty>Shown once {d.agreementMinRecords} records have two blind grades ({d.agreement.reduce((s, a) => s + a.n, 0)} so far).</Empty></div>
+            ) : (
               <Table>
-                <thead><tr><Th>Grade type</Th><Th>Pairs</Th><Th>Exact</Th><Th>Within ±0.5</Th></tr></thead>
+                <thead><tr><Th>Grade type</Th><Th>Pairs</Th><Th>Exact</Th><Th>Within ±0.5</Th><Th>Weighted kappa</Th></tr></thead>
                 <tbody>
                   {d.agreement.map((a) => (
-                    <tr key={a.kind}><Td>{GRADE_KIND_LABEL[a.kind]}</Td><Td className="num">{a.n}</Td><Td className="num">{Math.round(a.exact * 100)}%</Td><Td className="num">{Math.round(a.withinHalf * 100)}%</Td></tr>
+                    <tr key={a.kind}><Td>{GRADE_KIND_LABEL[a.kind]}</Td><Td className="num">{a.n}</Td><Td className="num">{Math.round(a.exact * 100)}%</Td><Td className="num">{Math.round(a.withinHalf * 100)}%</Td><Td className="num">{a.qwk === null ? '—' : a.qwk.toFixed(2)}</Td></tr>
                   ))}
                 </tbody>
               </Table>
