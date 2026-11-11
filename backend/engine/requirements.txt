@@ -1,0 +1,18 @@
+# SilkGrade engine + engine-svc runtime dependencies
+# Install into the torch_gpu conda env:
+#   conda activate torch_gpu
+#   pip install -r requirements.txt
+numpy>=1.26,<3
+opencv-python-headless>=4.9      # AKAZE is used on 4.x; on OpenCV 5 the engine falls back to SIFT
+scikit-learn>=1.4
+scipy>=1.11
+pillow>=10.0
+pillow-heif>=0.16                # HEIC uploads from phones
+colour-science>=0.4.4            # reference values for tests / colour maths cross-checks
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-dotenv>=1.0
+# optional:
+# onnxruntime>=1.17              # only if an ONNX model is activated
+# scikit-image>=0.22             # not required by V1 pipeline

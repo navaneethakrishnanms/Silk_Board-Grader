@@ -1,0 +1,75 @@
+# SilkGrade — full stack: MySQL 8, engine-svc (Python), api (Node), web (nginx), MinIO (optional).
+#   cp .env.example .env && docker compose up --build
+#   docker compose exec api npm run seed        # admin + demo users + presets (+ demo tests)
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-silkgrade}
+      MYSQL_USER: ${MYSQL_USER:-silkgrade}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-silkgrade}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+    ports: ["${MYSQL_PORT:-3306}:3306"]
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  engine:
+    build: ./backend/engine
+    restart: unless-stopped
+    environment:
+      STORAGE_ROOT: /storage
+      ENGINE_INTERNAL_TOKEN: ${ENGINE_INTERNAL_TOKEN:-change-me-engine-token}
+    volumes: [./storage:/storage]
+    expose: ["8001"]
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql: { condition: service_healthy }
+      engine: { condition: service_started }
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: mysql://${MYSQL_USER:-silkgrade}:${MYSQL_PASSWORD:-silkgrade}@mysql:3306/${MYSQL_DATABASE:-silkgrade}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      FILE_URL_SECRET: ${FILE_URL_SECRET:?set FILE_URL_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      STORAGE_ROOT: /storage
+      ENGINE_URL: http://engine:8001
+      ENGINE_INTERNAL_TOKEN: ${ENGINE_INTERNAL_TOKEN:-change-me-engine-token}
+      LAB_NAME: ${LAB_NAME:-Bangalore Silk Board — Silk Testing Laboratory}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@silkgrade.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@12345}
+    volumes: [./storage:/storage]
+    expose: ["4000"]
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["${WEB_PORT:-8080}:80"]
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    profiles: ["s3"]   # optional: docker compose --profile s3 up
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-silkgrade}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-silkgrade-secret}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [minio-data:/data]
+
+volumes:
+  mysql-data:
+  minio-data:

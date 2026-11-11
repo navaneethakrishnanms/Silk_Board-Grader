@@ -1,0 +1,5 @@
+.pytest_synthetic
+.pytest_cache
+__pycache__
+training/out
+.env

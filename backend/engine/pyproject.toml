@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "silkgrade-engine"
+dynamic = ["version"]
+description = "SilkGrade colour fastness grading engine (pure Python) and internal FastAPI service"
+requires-python = ">=3.10"
+readme = "README.md"
+dependencies = [
+  "numpy>=1.26,<3",
+  "opencv-python-headless>=4.9",
+  "scikit-learn>=1.4",
+  "scipy>=1.11",
+  "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+service = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2.6", "python-dotenv>=1.0", "pillow-heif>=0.16"]
+dev = ["pytest>=8.0", "httpx>=0.27", "colour-science>=0.4.4"]
+
+[tool.setuptools.dynamic]
+version = { attr = "silkgrade_engine.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["silkgrade_engine*", "engine_svc*"]

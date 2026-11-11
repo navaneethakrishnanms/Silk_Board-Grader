@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* Neutral viewing-booth grey for every image panel (Section 9.1) */
+  --color-booth: #808080;
+}
+
+/* Semantic tokens — neutral chrome so fabric is judged against neutral surroundings */
+:root {
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --surface-2: #f1f1f3;
+  --border: #e2e2e6;
+  --text: #18181b;
+  --muted: #5f5f6b;
+  --accent: #27272a;
+  --accent-fg: #ffffff;
+  --focus: #2563eb;
+  color-scheme: light;
+}
+.dark {
+  --bg: #121214;
+  --surface: #1b1b1f;
+  --surface-2: #24242a;
+  --border: #34343c;
+  --text: #ededf0;
+  --muted: #a1a1ab;
+  --accent: #ededf0;
+  --accent-fg: #18181b;
+  --focus: #60a5fa;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.surface { background: var(--surface); border: 1px solid var(--border); }
+.muted { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.booth { background: var(--color-booth); }
